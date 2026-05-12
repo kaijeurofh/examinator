@@ -46,19 +46,27 @@ cp .env.example .env
 docker compose up --build
 
 # 3. Open the frontend in your browser.
-#    http://localhost:3030
+#    http://localhost:3040
 ```
 
-Compose starts two containers:
+Compose starts two containers (defaults on this branch — see table for the
+distinction from the `main` / OpenAI branch):
 
-| Service           | Host port (default)        | Image tag             |
-| ----------------- | -------------------------- | --------------------- |
-| `backend` (API)   | `8200`  (`$BACKEND_PORT`)  | `examinator-backend`  |
-| `frontend` (UI)   | `3030`  (`$FRONTEND_PORT`) | `examinator-frontend` |
+| Service           | Host port (default)        | Image tag                   | Container                   |
+| ----------------- | -------------------------- | --------------------------- | --------------------------- |
+| `backend` (API)   | `8210`  (`$BACKEND_PORT`)  | `examinator-lokal-backend`  | `examinator-lokal-backend`  |
+| `frontend` (UI)   | `3040`  (`$FRONTEND_PORT`) | `examinator-lokal-frontend` | `examinator-lokal-frontend` |
+
+`docker-compose.yml` on this branch also pins `name: examinator-lokal` so
+the Compose project lives in its own network and doesn't collide with the
+`examinator` project on `main`. That means you can run **both stacks side
+by side**: check out `main` and `examinator-lokal` into two separate
+worktrees (or just toggle Compose's `up`/`down` per directory) and you'll
+have OpenAI on `3030/8200` and Ollama on `3040/8210` at the same time.
 
 The defaults stay away from popular collision points (`3000`, `8000`,
 `8080`). The browser talks to **both** containers via `localhost` — the
-frontend on `:3030`, the backend on `:8200`. CORS is generated from the same
+frontend on `:3040`, the backend on `:8210`. CORS is generated from the same
 env var that picks the host port, so the two stay in sync.
 
 ### Picking different host ports
@@ -69,10 +77,10 @@ If one of the defaults is still taken on your machine, override before the
 
 ```bash
 # Bash / zsh:
-FRONTEND_PORT=3131 BACKEND_PORT=8282 docker compose up --build
+FRONTEND_PORT=3141 BACKEND_PORT=8211 docker compose up --build
 
 # PowerShell:
-$env:FRONTEND_PORT=3131; $env:BACKEND_PORT=8282; docker compose up --build
+$env:FRONTEND_PORT=3141; $env:BACKEND_PORT=8211; docker compose up --build
 ```
 
 `NEXT_PUBLIC_API_URL` is baked into the JS bundle at build time, so changing
@@ -131,13 +139,44 @@ dass der Backend-Container den Host-Daemon trotzdem erreicht.
 
 ```bash
 docker compose up --build
-# Frontend:  http://localhost:3030
-# Backend:   http://localhost:8200
+# Frontend:  http://localhost:3040
+# Backend:   http://localhost:8210
 ```
 
 Da die Compose-Umgebung Vorrang vor `.env` hat, brauchst du fuer den
 Ollama-Pfad keinen einzigen Eintrag in `.env`. Ein `OPENAI_API_KEY=...`
 darf auch weiter dort stehen — er wird einfach ignoriert.
+
+### Parallelbetrieb: OpenAI- und Ollama-Stack gleichzeitig
+
+Die Default-Ports auf diesem Branch (`3040` / `8210`) und der Compose-
+Projektname `examinator-lokal` sind absichtlich so gewaehlt, dass beide
+Stacks parallel laufen koennen:
+
+| Branch              | Frontend | Backend | Compose-Projekt    |
+| ------------------- | -------- | ------- | ------------------ |
+| `main` (OpenAI)     | `3030`   | `8200`  | `examinator`       |
+| `examinator-lokal`  | `3040`   | `8210`  | `examinator-lokal` |
+
+Empfohlener Workflow per Git-Worktree, damit die `main`-Container nicht beim
+Branch-Wechsel zerstoert werden:
+
+```bash
+git worktree add ../examinator-lokal examinator-lokal
+cd ../examinator-lokal
+docker compose up --build       # Ollama-Stack:  http://localhost:3040
+```
+
+Im urspruenglichen Working Directory laeuft parallel:
+
+```bash
+cd /pfad/zu/examinator           # main-Branch
+docker compose up --build       # OpenAI-Stack:  http://localhost:3030
+```
+
+`docker ps` zeigt dann vier Container nebeneinander
+(`examinator-backend` / `examinator-frontend` und
+`examinator-lokal-backend` / `examinator-lokal-frontend`).
 
 ### Start bei lokaler Entwicklung (ohne Docker)
 

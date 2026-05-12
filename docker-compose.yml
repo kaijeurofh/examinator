@@ -1,16 +1,21 @@
-# Local docker-compose setup for the Examinator web app.
+# Local docker-compose setup for the Examinator web app (branch: examinator-lokal).
+#
+# This branch defaults to ports / image-tags / container-names that DO NOT
+# collide with the OpenAI variant on `main`, so you can run both stacks side
+# by side. Mapping at a glance:
+#
+#   main branch           : frontend 3030 / backend 8200 / project examinator
+#   examinator-lokal      : frontend 3040 / backend 8210 / project examinator-lokal
 #
 # Usage:
-#   1. cp .env.example .env  &&  edit the API keys you need.
+#   1. cp .env.example .env  (the Ollama defaults below override anything in .env)
 #   2. docker compose up --build
-#   3. open http://localhost:3030 in your browser.
+#   3. open http://localhost:3040 in your browser.
 #
-# Both host ports are configurable via FRONTEND_PORT / BACKEND_PORT (default
-# 3030 / 8200, chosen to avoid common Docker collisions). If one still
-# collides on your machine, set the env var on the host *before* the `up`
-# call:
+# Both host ports remain configurable via FRONTEND_PORT / BACKEND_PORT in
+# case the new defaults still collide on your machine:
 #
-#     FRONTEND_PORT=3131 docker compose up --build
+#     FRONTEND_PORT=3141 BACKEND_PORT=8211 docker compose up --build
 #
 # Note that NEXT_PUBLIC_API_URL is baked into the JS bundle at build time, so
 # if you change BACKEND_PORT you must rebuild the frontend image
@@ -19,13 +24,19 @@
 # The backend keeps job state in-process (no DB), so it is intentionally
 # limited to a single worker / replica.
 
+# Top-level project name -- pins the Compose project so this stack stays
+# distinct from the `examinator` project on the main branch. Without this,
+# both branches would default to the directory name and fight over the same
+# network / containers when run side by side.
+name: examinator-lokal
+
 services:
   backend:
     build:
       context: .
       dockerfile: Dockerfile
-    image: examinator-backend
-    container_name: examinator-backend
+    image: examinator-lokal-backend
+    container_name: examinator-lokal-backend
     restart: unless-stopped
     # Pass the host-side .env straight through. Vars like OPENAI_API_KEY and
     # PYDANTIC_AI_MODEL are read by pydantic-ai inside the container. The
@@ -34,11 +45,13 @@ services:
     env_file:
       - .env
     environment:
-      # The browser talks to the backend via http://localhost:${BACKEND_PORT}
+      # The browser talks to the backend via http://127.0.0.1:${BACKEND_PORT}
       # (the host port mapping below). The frontend container does NOT call
       # the backend over the docker network, so this is the only origin CORS
-      # must allow.
-      EXAMINATOR_CORS_ORIGINS: "http://localhost:${FRONTEND_PORT:-3030}"
+      # must allow. Both `localhost` and `127.0.0.1` are listed because the
+      # user may type either into the address bar; the Origin header is then
+      # whichever they used.
+      EXAMINATOR_CORS_ORIGINS: "http://localhost:${FRONTEND_PORT:-3040},http://127.0.0.1:${FRONTEND_PORT:-3040}"
       # --- Local LLM via Ollama (default on the examinator-lokal branch) ---
       # Switch back to OpenAI with EXAMINATOR_LLM_PROVIDER=openai in .env.
       EXAMINATOR_LLM_PROVIDER: ollama
@@ -54,7 +67,7 @@ services:
       # container can reach the host's Ollama via host.docker.internal.
       - "host.docker.internal:host-gateway"
     ports:
-      - "${BACKEND_PORT:-8200}:8000"
+      - "${BACKEND_PORT:-8210}:8000"
     healthcheck:
       test:
         - CMD
@@ -73,12 +86,18 @@ services:
       args:
         # Baked into the client JS bundle at build time. Must point at a URL
         # the user's browser (not the container!) can reach.
-        NEXT_PUBLIC_API_URL: "http://localhost:${BACKEND_PORT:-8200}"
-    image: examinator-frontend
-    container_name: examinator-frontend
+        #
+        # IPv4 *literal* (127.0.0.1) is deliberate: on Windows Chrome resolves
+        # `localhost` to ::1 first, and Docker Desktop's port forwarder can be
+        # shadowed by a foreign listener on the IPv6 loopback, producing a
+        # spurious ERR_CONNECTION_REFUSED for the browser while curl over IPv4
+        # works fine. Forcing 127.0.0.1 sidesteps that without disabling IPv6.
+        NEXT_PUBLIC_API_URL: "http://127.0.0.1:${BACKEND_PORT:-8210}"
+    image: examinator-lokal-frontend
+    container_name: examinator-lokal-frontend
     restart: unless-stopped
     ports:
-      - "${FRONTEND_PORT:-3030}:3000"
+      - "${FRONTEND_PORT:-3040}:3000"
     depends_on:
       backend:
         condition: service_healthy
