@@ -1,7 +1,13 @@
 import type { JobConfig } from "./taskTypes";
 
+// All API calls go to the same origin as the frontend. The Next.js server
+// reverse-proxies `/api/*` to the FastAPI backend (see `next.config.mjs`).
+// This means the bundle does not need to know the backend's host or port,
+// so the same image works on localhost, over the company VPN, behind a
+// reverse proxy, etc. Setting NEXT_PUBLIC_API_URL is still supported as
+// an escape hatch for setups where the backend is reached directly.
 export const API_BASE =
-  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "http://localhost:8000";
+  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
 
 export interface CreateJobOptions {
   config: JobConfig;

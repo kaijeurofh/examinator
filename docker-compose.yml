@@ -3,18 +3,23 @@
 # Usage:
 #   1. cp .env.example .env  &&  edit the API keys you need.
 #   2. docker compose up --build
-#   3. open http://localhost:3030 in your browser.
+#   3. open http://localhost:3030 in your browser
+#      (or http://<host-ip>:3030 from another machine on the same LAN/VPN).
 #
-# Both host ports are configurable via FRONTEND_PORT / BACKEND_PORT (default
-# 3030 / 8200, chosen to avoid common Docker collisions). If one still
-# collides on your machine, set the env var on the host *before* the `up`
-# call:
+# Networking model
+# ----------------
+# The frontend container reverse-proxies `/api/*` to the backend over the
+# internal docker network (`http://backend:8000`). The browser only ever
+# talks to the frontend's port, which means:
 #
-#     FRONTEND_PORT=3131 docker compose up --build
+#   - the backend port does NOT need to be exposed to the host or the LAN;
+#   - the same image works from localhost, from a VPN client, or behind a
+#     reverse proxy without rebuilding;
+#   - same-origin requests sidestep CORS for the regular API surface.
 #
-# Note that NEXT_PUBLIC_API_URL is baked into the JS bundle at build time, so
-# if you change BACKEND_PORT you must rebuild the frontend image
-# (`docker compose build frontend`).
+# The frontend host port is configurable via FRONTEND_PORT (default 3030).
+# Set BACKEND_PORT only if you also want to expose the FastAPI app directly
+# for debugging (commented out below).
 #
 # The backend keeps job state in-process (no DB), so it is intentionally
 # limited to a single worker / replica.
@@ -32,13 +37,19 @@ services:
     env_file:
       - .env
     environment:
-      # The browser talks to the backend via http://localhost:${BACKEND_PORT}
-      # (the host port mapping below). The frontend container does NOT call
-      # the backend over the docker network, so this is the only origin CORS
-      # must allow.
-      EXAMINATOR_CORS_ORIGINS: "http://localhost:${FRONTEND_PORT:-3030}"
-    ports:
-      - "${BACKEND_PORT:-8200}:8000"
+      # All browser traffic arrives at the FastAPI app via Next.js rewrites,
+      # so requests appear to originate from the backend container itself
+      # (same origin from FastAPI's perspective). We keep a permissive CORS
+      # list anyway so a direct host-mapped backend port still works during
+      # debugging, but in the proxied setup CORS is effectively bypassed.
+      EXAMINATOR_CORS_ORIGINS: "${EXAMINATOR_CORS_ORIGINS:-http://localhost:${FRONTEND_PORT:-3030}}"
+    # Backend port is intentionally NOT published by default — the frontend
+    # reaches it over the docker network at `http://backend:8000`. If you
+    # need to hit FastAPI directly (Swagger UI, curl debugging), uncomment:
+    # ports:
+    #   - "${BACKEND_PORT:-8200}:8000"
+    expose:
+      - "8000"
     healthcheck:
       test:
         - CMD
@@ -54,13 +65,14 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-      args:
-        # Baked into the client JS bundle at build time. Must point at a URL
-        # the user's browser (not the container!) can reach.
-        NEXT_PUBLIC_API_URL: "http://localhost:${BACKEND_PORT:-8200}"
     image: examinator-frontend
     container_name: examinator-frontend
     restart: unless-stopped
+    environment:
+      # Where the Next.js server forwards `/api/*` requests. The browser
+      # never sees this URL; it only routes traffic inside the docker
+      # network. Override only if you split the two services across hosts.
+      BACKEND_INTERNAL_URL: "http://backend:8000"
     ports:
       - "${FRONTEND_PORT:-3030}:3000"
     depends_on:

@@ -5,8 +5,11 @@
 #   builder  - compiles the app with `next build` -> .next/standalone.
 #   runner   - minimal image with just the standalone server + static assets.
 #
-# NEXT_PUBLIC_API_URL is baked into the client bundle at build time, so it
-# must be passed as a build-arg (docker compose handles this for us).
+# By default the client talks to the API over the same origin and the
+# Next.js server reverse-proxies `/api/*` to `$BACKEND_INTERNAL_URL`
+# (configured in docker-compose.yml). This image therefore needs no
+# build-time API URL. If you want to bypass the proxy and have the
+# browser hit the backend directly, pass NEXT_PUBLIC_API_URL as a build-arg.
 
 ARG NODE_VERSION=20-alpine
 
@@ -36,9 +39,11 @@ ENV NEXT_TELEMETRY_DISABLED=1
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Public env vars must be present at build time; the URL the browser will use
-# to reach the FastAPI backend.
-ARG NEXT_PUBLIC_API_URL=http://localhost:8000
+# Optional escape hatch: bake a direct backend URL into the client bundle
+# if you do NOT want to use the Next.js rewrite proxy. Leave empty to make
+# the client use same-origin relative paths (the recommended setup, which
+# works correctly when the app is reached over a VPN / LAN / reverse proxy).
+ARG NEXT_PUBLIC_API_URL=""
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 
 RUN npm run build
