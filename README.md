@@ -94,6 +94,109 @@ docker compose down
 
 ---
 
+## Lokal mit Ollama (Branch `examinator-lokal`)
+
+Dieser Branch tauscht den OpenAI-Pfad gegen ein lokal laufendes Ollama-Modell
+aus. Ziel: kein Provider-Key, keine ausgehenden API-Calls, alles auf der
+eigenen GPU. Auf einer RTX 5090 (32 GB VRAM) laeuft das mitgelieferte
+`gemma4:31b` komfortabel.
+
+### Voraussetzungen
+
+* [Ollama](https://ollama.com/) ist auf dem Host installiert und der Daemon
+  laeuft (Default-URL `http://localhost:11434`).
+* Das Zielmodell ist bereits gezogen — auf dieser Maschine sollte
+  `gemma4:31b` bereits vorhanden sein. Pruefen:
+
+  ```bash
+  curl http://localhost:11434/api/tags
+  # oder
+  ollama list
+  ```
+
+  Falls nicht vorhanden:
+
+  ```bash
+  ollama pull gemma4:31b
+  ```
+
+### Start mit Docker Compose
+
+`docker-compose.yml` auf diesem Branch ist bereits vorkonfiguriert: das
+Backend bekommt `EXAMINATOR_LLM_PROVIDER=ollama`,
+`OLLAMA_BASE_URL=http://host.docker.internal:11434/v1`,
+`OLLAMA_MODEL=gemma4:31b` und `EXAMINATOR_OUTPUT_MODE=prompted`. Auf Linux
+sorgt der `extra_hosts: host.docker.internal:host-gateway`-Eintrag dafuer,
+dass der Backend-Container den Host-Daemon trotzdem erreicht.
+
+```bash
+docker compose up --build
+# Frontend:  http://localhost:3030
+# Backend:   http://localhost:8200
+```
+
+Da die Compose-Umgebung Vorrang vor `.env` hat, brauchst du fuer den
+Ollama-Pfad keinen einzigen Eintrag in `.env`. Ein `OPENAI_API_KEY=...`
+darf auch weiter dort stehen — er wird einfach ignoriert.
+
+### Start bei lokaler Entwicklung (ohne Docker)
+
+```bash
+export EXAMINATOR_LLM_PROVIDER=ollama
+export OLLAMA_BASE_URL=http://localhost:11434/v1
+export OLLAMA_MODEL=gemma4:31b
+export EXAMINATOR_OUTPUT_MODE=prompted
+
+uv run examinator-serve --reload
+```
+
+### Output-Modus: tool vs. prompted
+
+`EXAMINATOR_OUTPUT_MODE` steuert, wie pydantic-ai das strukturierte
+JSON-Ergebnis erzwingt:
+
+| Wert       | Verhalten                                                                  | Wann nutzen                                   |
+| ---------- | -------------------------------------------------------------------------- | --------------------------------------------- |
+| `tool`     | Native Function-/Tool-Calls (Default fuer OpenAI/Anthropic/Gemini).        | Cloud-Provider, GPT-4/5, Claude, Gemini.      |
+| `prompted` | JSON-Schema wird in den System-Prompt eingebettet und die Antwort geparst. | Lokale Modelle, insb. Gemma. Default auf `examinator-lokal`. |
+
+Wenn `gemma4:31b` mit `prompted` mal eine ungueltige JSON-Antwort liefert,
+ist das ein Modell- bzw. Kontextlimit-Problem; entweder
+`EXAMINATOR_MAX_CHUNKS` reduzieren oder auf ein groesseres Quant
+ausweichen. Tool-Calling mit Gemma ist in den meisten Ollama-Builds noch
+nicht stabil und wird daher hier nicht empfohlen.
+
+### Zurueck auf OpenAI wechseln
+
+Provider und Output-Modus sind reine Env-Schalter — kein Code-Aenderung
+notwendig:
+
+```bash
+# .env oder Shell-Env
+EXAMINATOR_LLM_PROVIDER=openai
+EXAMINATOR_OUTPUT_MODE=tool
+PYDANTIC_AI_MODEL=openai:gpt-5.2
+OPENAI_API_KEY=sk-...
+```
+
+In Docker einfach die drei Eintraege oben in `docker-compose.yml` (oder
+ueber die `environment:`-Sektion eines `docker-compose.override.yml`)
+ueberschreiben und `docker compose up --build` neu starten.
+
+### Performance & Quality Hinweise
+
+* `gemma4:31b` liefert solide strukturierte Antworten, ist aber spuerbar
+  langsamer als Cloud-Modelle. Plane fuer einen Vier-Chunk-Job grob mit
+  60–120 s je nach Prompt-Laenge.
+* Sehr kleine Modelle (< 7 B) scheitern oft an den verschachtelten
+  Pydantic-Schemas — das ist genau der Grund, weshalb dieser Branch
+  defaultmaessig auf einem 31 B-Modell mit `prompted` laeuft.
+* Bei groesseren Studienmaterialien `EXAMINATOR_MAX_CHUNKS` auf 4-6
+  begrenzen, sonst sammelt der Reducer mehr Kandidaten an, als die
+  Kontextlaenge bequem schluckt.
+
+---
+
 ## Quickstart (local Python + Node)
 
 Use this when you want hot-reload during development.

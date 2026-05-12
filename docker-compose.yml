@@ -28,7 +28,9 @@ services:
     container_name: examinator-backend
     restart: unless-stopped
     # Pass the host-side .env straight through. Vars like OPENAI_API_KEY and
-    # PYDANTIC_AI_MODEL are read by pydantic-ai inside the container.
+    # PYDANTIC_AI_MODEL are read by pydantic-ai inside the container. The
+    # ollama-related vars below override .env defaults so this branch
+    # ('examinator-lokal') runs against the local Ollama out-of-the-box.
     env_file:
       - .env
     environment:
@@ -37,6 +39,20 @@ services:
       # the backend over the docker network, so this is the only origin CORS
       # must allow.
       EXAMINATOR_CORS_ORIGINS: "http://localhost:${FRONTEND_PORT:-3030}"
+      # --- Local LLM via Ollama (default on the examinator-lokal branch) ---
+      # Switch back to OpenAI with EXAMINATOR_LLM_PROVIDER=openai in .env.
+      EXAMINATOR_LLM_PROVIDER: ollama
+      # host.docker.internal resolves to the Docker host. Docker Desktop on
+      # Windows/Mac provides it automatically; on Linux see extra_hosts below.
+      OLLAMA_BASE_URL: http://host.docker.internal:11434/v1
+      OLLAMA_MODEL: gemma4:31b
+      # Gemma family has no first-class tool-calling template in many Ollama
+      # builds; PromptedOutput is the more reliable mode for our schemas.
+      EXAMINATOR_OUTPUT_MODE: prompted
+    extra_hosts:
+      # No-op on Docker Desktop (Win/Mac); required on Linux so the backend
+      # container can reach the host's Ollama via host.docker.internal.
+      - "host.docker.internal:host-gateway"
     ports:
       - "${BACKEND_PORT:-8200}:8000"
     healthcheck:
