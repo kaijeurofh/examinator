@@ -1,4 +1,4 @@
-# Devcontainer image for llm-uv-template.
+# Devcontainer image for examinator.
 #
 # Goals:
 #   * Python 3.12 baseline matching .python-version.
@@ -36,4 +36,4 @@ COPY --from=uv /uv /uvx /usr/local/bin/
 RUN uv --version
 
 USER vscode
-WORKDIR /workspaces/llm-uv-template
+WORKDIR /workspaces/examinator

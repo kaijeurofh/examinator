@@ -1,0 +1,29 @@
+# Anything that would either bloat the image or leak local state.
+
+# Build output / dep tree
+node_modules/
+.next/
+out/
+dist/
+build/
+
+# VCS
+.git/
+.gitignore
+
+# Local env (NEXT_PUBLIC_API_URL is passed as a build arg by docker compose)
+.env
+.env.*
+!.env.example
+
+# Logs and IDE noise
+*.log
+npm-debug.log*
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Docker files themselves
+Dockerfile*
+.dockerignore

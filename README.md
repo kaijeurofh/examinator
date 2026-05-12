@@ -1,13 +1,22 @@
-# llm-uv-template
+# examinator
 
-[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/your-org/llm-uv-template/badge)](https://scorecard.dev/viewer/?uri=github.com/your-org/llm-uv-template)
+A web app that generates higher-education exam tasks from study material
+(PDF or pasted text) for four assignment types:
 
-A secure, agent-ready Python template for building LLM workflows with
-[`uv`](https://docs.astral.sh/uv/) and
-[`pydantic-ai`](https://ai.pydantic.dev/). It ships with cross-tool agent
-rules (`AGENTS.md`), passive security guardrails for Cursor / Codex /
-Claude Code, hardened CI, and an optional devcontainer — so an LLM coding
-agent can be productive in this repo from the first prompt.
+* **Hausarbeitsfragen** — academic term-paper prompts with rubric and student roadmap.
+* **Projektarbeitsfragen** — practice-oriented project assignments with execution format.
+* **Klausurfragen** — closed-book exam questions with model answer and rubric.
+* **Einsendeaufgaben** — open-book booklet assignments with model answer and rubric.
+
+The backend is FastAPI + `pydantic-ai`; the frontend is a small Next.js 14
+app. Each job uses a *chunked-with-overlap* generation strategy: pages are
+grouped into chunks, the LLM emits candidate questions per chunk, and a
+final reducer call selects exactly 10 deduplicated questions. The result
+can be downloaded as an `.xlsx` workbook with one column per schema field.
+
+The repo was originally bootstrapped from a secure pydantic-ai template;
+all the security guardrails (Cursor/Codex/Claude hooks, hardened CI,
+devcontainer) still apply.
 
 The goal of this template is **rules over code**: keep the Python skeleton
 intentionally small, push the conventions into config files an agent will
@@ -21,7 +30,73 @@ actually read.
 
 ---
 
-## Quickstart
+## Quickstart with Docker (recommended for first run)
+
+If you just want to try the app locally and have [Docker
+Desktop](https://docs.docker.com/desktop/) (or Docker Engine + Compose v2)
+installed, this is the fastest path:
+
+```bash
+# 1. Configure provider keys (the backend reads them at startup).
+cp .env.example .env
+#   then edit .env and set OPENAI_API_KEY (or the key for whichever provider
+#   you put in PYDANTIC_AI_MODEL).
+
+# 2. Build and start both services.
+docker compose up --build
+
+# 3. Open the frontend in your browser.
+#    http://localhost:3030
+```
+
+Compose starts two containers:
+
+| Service           | Host port (default)        | Image tag             |
+| ----------------- | -------------------------- | --------------------- |
+| `backend` (API)   | `8200`  (`$BACKEND_PORT`)  | `examinator-backend`  |
+| `frontend` (UI)   | `3030`  (`$FRONTEND_PORT`) | `examinator-frontend` |
+
+The defaults stay away from popular collision points (`3000`, `8000`,
+`8080`). The browser talks to **both** containers via `localhost` — the
+frontend on `:3030`, the backend on `:8200`. CORS is generated from the same
+env var that picks the host port, so the two stay in sync.
+
+### Picking different host ports
+
+If one of the defaults is still taken on your machine, override before the
+`up` call — both values are referenced through env-var substitution in
+`docker-compose.yml`:
+
+```bash
+# Bash / zsh:
+FRONTEND_PORT=3131 BACKEND_PORT=8282 docker compose up --build
+
+# PowerShell:
+$env:FRONTEND_PORT=3131; $env:BACKEND_PORT=8282; docker compose up --build
+```
+
+`NEXT_PUBLIC_API_URL` is baked into the JS bundle at build time, so changing
+`BACKEND_PORT` requires a rebuild of the frontend image:
+
+```bash
+docker compose build frontend
+docker compose up -d frontend
+```
+
+To stop and remove the containers:
+
+```bash
+docker compose down
+```
+
+> The backend keeps job state in RAM, so it is intentionally limited to a
+> single replica. Restarting the container drops all jobs.
+
+---
+
+## Quickstart (local Python + Node)
+
+Use this when you want hot-reload during development.
 
 ```bash
 # 1. Install uv (once per machine). Prefer a trusted package manager:
@@ -42,13 +117,18 @@ uv sync
 cp .env.example .env
 # then edit .env
 
-# 4. Run the example agent.
-uv run llm-uv-template "The windy city in the US of A."
+# 4. Start the API.
+uv run examinator-serve --reload
+
+# 5. In a separate shell, start the frontend.
+cd frontend
+cp .env.example .env.local       # adjust NEXT_PUBLIC_API_URL if needed
+npm install
+npm run dev                       # http://localhost:3000
 ```
 
-The example agent returns a typed `CityInfo` JSON object. Swap the model in
-`.env` (`PYDANTIC_AI_MODEL=anthropic:claude-4.6-sonnet`, etc.) — the code is
-provider-agnostic.
+Swap the model in `.env` (`PYDANTIC_AI_MODEL=anthropic:claude-4.6-sonnet`,
+etc.) — the backend is provider-agnostic.
 
 ### Day-to-day commands
 
@@ -56,11 +136,61 @@ provider-agnostic.
 | ----------------- | -------------------------------------- |
 | Add a dependency  | `uv add <pkg>`                         |
 | Add a dev dep     | `uv add --group dev <pkg>`             |
-| Run the CLI       | `uv run llm-uv-template "your prompt"` |
+| Start the API     | `uv run examinator-serve --reload`     |
+| Frontend dev      | `cd frontend && npm run dev`           |
 | Lint (autofix)    | `uv run ruff check --fix .`            |
 | Format            | `uv run ruff format .`                 |
 | Type-check        | `uv run mypy src tests`                |
 | Tests             | `uv run pytest`                        |
+
+---
+
+## Examinator Web App
+
+### How a job flows through the system
+
+1. The frontend (`/new/[taskType]`) posts a multipart form to
+   `POST /api/jobs`. The `config` field is a JSON blob validated against
+   `examinator.core.schemas.JobConfig` (discriminated on `task_type`); the
+   study material is either a `pdf` file part or a `text` string part.
+2. The backend schedules a background `asyncio` task that:
+   * Parses the input into pages (pypdf or pseudo-pages for plaintext).
+   * Builds page-aware chunks with overlap (cap: `EXAMINATOR_MAX_CHUNKS`).
+   * Runs the candidate agent per chunk to produce up to 4 candidates each.
+   * Runs the reducer agent once across the pooled candidates to pick
+     **exactly 10** non-overlapping final questions.
+3. Progress is fan-out to subscribers via `GET /api/jobs/{id}/events`
+   (Server-Sent Events). The frontend opens an `EventSource` and renders a
+   live timeline.
+4. When the job is `done` the result lives in-memory; the user clicks
+   "Excel herunterladen" which streams `.xlsx` from
+   `GET /api/jobs/{id}/excel`.
+
+### API surface
+
+| Method | Path                          | Purpose                                  |
+| ------ | ----------------------------- | ---------------------------------------- |
+| GET    | `/api/health`                 | Readiness probe                          |
+| POST   | `/api/jobs`                   | Queue a new generation job (multipart)   |
+| GET    | `/api/jobs/{id}/events`       | SSE progress stream                      |
+| GET    | `/api/jobs/{id}`              | Final JSON result + last events          |
+| GET    | `/api/jobs/{id}/excel`        | `.xlsx` download                         |
+
+OpenAPI / Swagger UI: <http://localhost:8000/api/docs>.
+
+### Operational notes
+
+* **Single worker only.** The `JobStore` is in-process; run uvicorn with
+  `--workers 1`. The CLI entry-point (`examinator-serve`) enforces this.
+* **No persistence.** Jobs are kept in RAM and evicted by a TTL janitor
+  (default 1 hour after completion). Restarting the API drops everything.
+* **No auth / no DB.** The MVP is single-tenant and trusts the network it
+  is deployed on. Put a reverse proxy with auth in front if you expose it
+  beyond localhost.
+* **OCR is out of scope.** Scanned PDFs without an embedded text layer
+  will produce an explicit `error` event.
+* **Model selection.** Set `PYDANTIC_AI_MODEL` in `.env` (default
+  `openai:gpt-5.2`). Any provider supported by `pydantic-ai` works.
 
 ---
 

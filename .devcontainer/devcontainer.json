@@ -1,6 +1,6 @@
 {
   "$schema": "https://raw.githubusercontent.com/devcontainers/spec/main/schemas/devContainer.schema.json",
-  "name": "llm-uv-template",
+  "name": "examinator",
   "build": {
     "dockerfile": "Dockerfile"
   },

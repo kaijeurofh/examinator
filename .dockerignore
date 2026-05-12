@@ -1,0 +1,60 @@
+# Don't ship the local venv, caches, or anything build-unrelated into the
+# backend image. Keeps the build context small and prevents accidental
+# secret/lockfile leaks.
+
+# VCS
+.git/
+.gitignore
+.gitattributes
+.github/
+
+# Local environments and secrets
+.env
+.env.*
+!.env.example
+.venv/
+venv/
+
+# Python build/test artefacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+dist/
+build/
+*.egg-info/
+
+# Docs, IDE, tool config that don't belong in the runtime image
+docs/
+*.md
+!README.md
+.idea/
+.vscode/
+.cursor/
+.claude/
+.codex/
+.aiderignore
+.cursorignore
+.codexignore
+.gitleaks.toml
+
+# Devcontainer
+.devcontainer/
+
+# Frontend lives in its own build context
+frontend/
+
+# Tests are not needed at runtime
+tests/
+
+# Compose + Docker files themselves
+docker-compose*.yml
+Dockerfile*
+.dockerignore
+
+# OS noise
+.DS_Store
+Thumbs.db

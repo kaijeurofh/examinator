@@ -1,0 +1,68 @@
+# Local docker-compose setup for the Examinator web app.
+#
+# Usage:
+#   1. cp .env.example .env  &&  edit the API keys you need.
+#   2. docker compose up --build
+#   3. open http://localhost:3030 in your browser.
+#
+# Both host ports are configurable via FRONTEND_PORT / BACKEND_PORT (default
+# 3030 / 8200, chosen to avoid common Docker collisions). If one still
+# collides on your machine, set the env var on the host *before* the `up`
+# call:
+#
+#     FRONTEND_PORT=3131 docker compose up --build
+#
+# Note that NEXT_PUBLIC_API_URL is baked into the JS bundle at build time, so
+# if you change BACKEND_PORT you must rebuild the frontend image
+# (`docker compose build frontend`).
+#
+# The backend keeps job state in-process (no DB), so it is intentionally
+# limited to a single worker / replica.
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: examinator-backend
+    container_name: examinator-backend
+    restart: unless-stopped
+    # Pass the host-side .env straight through. Vars like OPENAI_API_KEY and
+    # PYDANTIC_AI_MODEL are read by pydantic-ai inside the container.
+    env_file:
+      - .env
+    environment:
+      # The browser talks to the backend via http://localhost:${BACKEND_PORT}
+      # (the host port mapping below). The frontend container does NOT call
+      # the backend over the docker network, so this is the only origin CORS
+      # must allow.
+      EXAMINATOR_CORS_ORIGINS: "http://localhost:${FRONTEND_PORT:-3030}"
+    ports:
+      - "${BACKEND_PORT:-8200}:8000"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request,sys; sys.exit(0) if urllib.request.urlopen('http://localhost:8000/api/health', timeout=2).status == 200 else sys.exit(1)"
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # Baked into the client JS bundle at build time. Must point at a URL
+        # the user's browser (not the container!) can reach.
+        NEXT_PUBLIC_API_URL: "http://localhost:${BACKEND_PORT:-8200}"
+    image: examinator-frontend
+    container_name: examinator-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-3030}:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
