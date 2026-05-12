@@ -1,0 +1,138 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# Workflow-level least-privilege default. Per-job blocks repeat this so a
+# future contributor adding a new job inherits the safe baseline even if they
+# forget to set it explicitly.
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: ruff + mypy + pytest (py${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    steps:
+      # step-security/harden-runner@v2.19.1
+      # Audits outbound network calls from the runner. Switch egress-policy to
+      # "block" once you have observed which hosts your dependencies actually
+      # contact.
+      - name: Harden runner
+        uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450
+        with:
+          egress-policy: audit
+
+      # actions/checkout@v6.0.2
+      # persist-credentials: false ensures the GITHUB_TOKEN is not retained
+      # in `.git/config` after checkout, so a subsequent step (including a
+      # compromised transitive dep running during `uv sync`) cannot read it.
+      # Matches the hardening already applied in scorecard.yml.
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+
+      # astral-sh/setup-uv@v8.1.0
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          python-version: ${{ matrix.python-version }}
+          enable-cache: true
+
+      - name: Verify lockfile is in sync with pyproject.toml
+        run: uv lock --check
+
+      - name: Install dependencies
+        run: uv sync --frozen --all-groups
+
+      - name: Lint (ruff check)
+        run: uv run ruff check .
+
+      - name: Format check (ruff format)
+        run: uv run ruff format --check .
+
+      - name: Type-check (mypy)
+        run: uv run mypy src tests
+
+      - name: Tests (pytest)
+        run: uv run pytest -q
+
+      # Run the same gitleaks hook configured in .pre-commit-config.yaml,
+      # against the full tree, so secret scanning is enforced even when a
+      # developer skipped `uv run pre-commit install` locally.
+      - name: Secret scan (gitleaks via pre-commit)
+        run: uv run pre-commit run gitleaks --all-files --show-diff-on-failure
+
+      # Audit resolved Python dependencies against the OSV / PyPI advisory
+      # database. Catches CVEs in deps that Dependabot has not yet PR'd.
+      # We export the locked runtime set (no dev deps, no project itself)
+      # and let pip-audit resolve nothing — `--disable-pip` ensures it only
+      # checks what `uv` already locked.
+      #
+      # `pip-audit` itself is pinned: an unpinned `uvx --from pip-audit` would
+      # resolve a different version on every run, defeating the same
+      # reproducibility guarantee the rest of this workflow gives. Dependabot
+      # tracks the `uv` ecosystem and will PR-bump this pin as needed.
+      - name: Audit dependencies (pip-audit)
+        env:
+          PIP_AUDIT_VERSION: "2.10.0"
+        run: |
+          # `uv export` writes the full transitive closure already resolved by
+          # `uv lock`, so we can tell pip-audit to skip its own resolver with
+          # `--no-deps`. That keeps the audit reading exactly the versions we
+          # ship — no chance of an audit-time resolver picking different ones.
+          uv export --no-dev --no-emit-project --no-hashes \
+            --format requirements-txt --output-file /tmp/runtime-requirements.txt
+          uvx --from "pip-audit==${PIP_AUDIT_VERSION}" pip-audit --strict \
+            --disable-pip --no-deps \
+            --requirement /tmp/runtime-requirements.txt
+
+  actionlint:
+    name: actionlint (workflow YAML)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Harden runner
+        # step-security/harden-runner@v2.19.1
+        uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        # actions/checkout@v6.0.2
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+
+      # Run actionlint from the upstream-published OCI image.
+      # Pinned by *digest* (not just tag) so a maintainer-account compromise
+      # cannot retroactively swap the image we run. Bump deliberately:
+      #
+      #   docker buildx imagetools inspect rhysd/actionlint:<new-tag>
+      #
+      # and update both the tag comment and the digest. Dependabot does not
+      # currently watch raw `docker://` references in workflow YAML.
+      #
+      # rhysd/actionlint:1.7.7
+      - name: Lint GitHub workflows
+        uses: docker://rhysd/actionlint@sha256:887a259a5a534f3c4f36cb02dca341673c6089431057242cdc931e9f133147e9
+        with:
+          args: -color

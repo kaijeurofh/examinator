@@ -1,0 +1,65 @@
+# --- Python -----------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+*.egg
+.eggs/
+
+# --- Build / packaging ------------------------------------------------------
+build/
+dist/
+sdist/
+wheels/
+.installed.cfg
+MANIFEST
+
+# --- Virtual envs (uv creates .venv) ----------------------------------------
+.venv/
+venv/
+env/
+ENV/
+
+# Note: `uv.lock` is intentionally NOT ignored. Commit it for reproducible installs.
+
+# --- Tool caches ------------------------------------------------------------
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+*.cover
+
+# --- Secrets / local config -------------------------------------------------
+.env
+.env.*
+!.env.example
+
+# --- IDE / OS ---------------------------------------------------------------
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# --- Cursor / agent local state (user-specific, do not commit) --------------
+.cursor/logs/
+.cursor/state/
+.claude/local/
+.codex/sessions/
+agent-tools/
+
+# --- Notebook checkpoints ---------------------------------------------------
+.ipynb_checkpoints/
+
+# --- Data / local artifacts -------------------------------------------------
+*.log

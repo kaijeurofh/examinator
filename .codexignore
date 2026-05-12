@@ -1,0 +1,75 @@
+# Mirror of .cursorignore for OpenAI Codex CLI.
+# Keep these two files in sync.
+
+# --- Secrets ----------------------------------------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+secrets/
+credentials.json
+.aws/
+.ssh/
+.gnupg/
+
+# --- Lockfiles & generated artifacts ---------------------------------------
+uv.lock
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+poetry.lock
+Pipfile.lock
+
+# --- Build / cache ----------------------------------------------------------
+.venv/
+__pycache__/
+*.pyc
+dist/
+build/
+*.egg-info/
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+node_modules/
+
+# --- Large data / binary ----------------------------------------------------
+*.csv
+*.parquet
+*.feather
+*.arrow
+*.h5
+*.hdf5
+*.npy
+*.npz
+*.pkl
+*.pickle
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.7z
+*.rar
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.pdf
+*.mp4
+*.mov
+*.webm
+
+# --- Local data / logs ------------------------------------------------------
+data/
+datasets/
+logs/
+*.log
+.ipynb_checkpoints/
+
+# --- VCS / OS noise ---------------------------------------------------------
+.git/
+.DS_Store
+Thumbs.db

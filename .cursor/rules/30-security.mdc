@@ -1,0 +1,38 @@
+---
+description: Security guardrails. Always applied.
+alwaysApply: true
+---
+
+# Security rules
+
+These rules are non-negotiable. Violations should block the change.
+
+1. **Never read, write, modify, print, or log `.env` or `.env.*`**
+   (the lone exception is `.env.example`, which is a schema, not secrets).
+   If you need to know what variables exist, open `.env.example`.
+
+2. **Never embed real secrets** in source, tests, fixtures, snapshots, or
+   docs. Use obvious placeholders: `sk-replace-me`, `not-a-real-key`.
+
+3. **Redact before logging.** Treat the substrings `api_key`, `apikey`,
+   `token`, `secret`, `password`, `authorization`, and `bearer` as poison —
+   never include surrounding values in logs, traces, or error messages.
+
+4. **Validate untrusted input** (LLM output, user input, file contents,
+   network responses) before passing it to:
+   - `subprocess` / `os.system` / `shell=True`
+   - `eval`, `exec`, `compile`
+   - filesystem paths (anchor to a base dir, resolve, and verify the prefix)
+   - SQL (parameterize, never f-string)
+   - HTTP URLs (allow-list hosts when possible)
+
+5. **Do not add new outbound network calls** to providers/hosts other than
+   the configured LLM provider without a clear instruction in the user
+   prompt to do so.
+
+6. **Do not edit `.codex/config.toml` or `.claude/settings.json`** to widen
+   permissions without explicit human approval in this session. If the
+   sandbox is blocking necessary work, stop and ask.
+
+7. **No `curl | sh`, no `wget | bash`, no unpinned `pip install` from a
+   URL.** If a build step needs an external tool, vendor it or pin it.

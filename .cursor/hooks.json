@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "hooks": {
+    "beforeShellExecution": [
+      {
+        "command": ".cursor/hooks/guard-env.py",
+        "failClosed": true,
+        "timeout": 5
+      }
+    ],
+    "beforeSubmitPrompt": [
+      {
+        "command": ".cursor/hooks/scan-prompt.py",
+        "failClosed": false,
+        "timeout": 5
+      }
+    ]
+  }
+}

@@ -1,0 +1,24 @@
+---
+description: Always-applied baseline rules. Defers to AGENTS.md as the source of truth.
+alwaysApply: true
+---
+
+# Baseline rules
+
+The canonical, cross-tool ruleset lives in [AGENTS.md](mdc:AGENTS.md). Read
+it before suggesting any change. The points below are repeated for emphasis
+because Cursor agents tend to miss them.
+
+- This project uses **`uv`** for all Python work. Never run `pip`, `poetry`,
+  `python -m venv`, or bare `python`. Always use `uv run …` or `uv add …`.
+- Target Python **3.12+**.
+- Before declaring a task complete, you **must** run:
+  - `uv run ruff check --fix .`
+  - `uv run ruff format .`
+  - `uv run mypy src`
+  - `uv run pytest`
+- Never read, write, or print the contents of `.env` or `.env.*`. Use
+  `.env.example` as the schema reference.
+- Prefer functions over classes. Prefer the stdlib over new dependencies.
+- One logical change per commit. No emoji or AI attribution in commit
+  messages.

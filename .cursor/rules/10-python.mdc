@@ -1,0 +1,23 @@
+---
+description: Python coding standards. Auto-attaches when any .py file is in context.
+globs: ["**/*.py"]
+---
+
+# Python style
+
+- **Type annotations on every function**, including private helpers and
+  `__init__`. `mypy --strict` is enforced in CI.
+- Use modern syntax: `list[int]` not `List[int]`, `X | None` not
+  `Optional[X]`, `match` statements where they read more clearly than `if`
+  chains.
+- Use `pathlib.Path` for filesystem work, not `os.path`.
+- Use `pydantic.BaseModel` for any structured payload that crosses an LLM,
+  HTTP, file, or process boundary. No raw `dict[str, Any]` at boundaries.
+- **No bare `except:`.** No `except Exception:` without a comment explaining
+  why a narrow exception is impractical.
+- **No comments that narrate the code.** Bad: `# Increment counter`. Good:
+  `# pydantic-ai retries 3x by default; we override to 1 for cost reasons.`
+- Prefer functions and dataclasses over classes with state. A class with
+  only static methods should be a module.
+- Logging: use the stdlib `logging` module, never `print`, in library code.
+  Never log secrets — redact `Authorization`, `api_key`, `token`, etc.

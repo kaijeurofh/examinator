@@ -1,0 +1,19 @@
+---
+description: Test-writing rules. Auto-attaches under tests/.
+globs: ["tests/**/*.py"]
+---
+
+# Tests
+
+- Framework: **pytest** with `pytest-asyncio` (`asyncio_mode = "auto"`).
+- Mirror the source tree: `src/llm_uv_template/foo.py` → `tests/test_foo.py`.
+- **Never make real network calls.** LLM calls must be mocked with
+  `pydantic_ai.models.test.TestModel` or `FunctionModel`. See
+  [tests/test_agent.py](mdc:tests/test_agent.py) for the canonical pattern.
+- **No real clocks or `time.sleep`.** Monkeypatch `time` / `datetime` if a
+  test depends on time.
+- Use `pytest.mark.parametrize` for table-driven tests. Avoid loops with
+  `assert` inside.
+- Asserts are allowed (ruff `S101` is disabled in `tests/`), but prefer
+  pytest's rich comparison helpers for collections.
+- Each new behavior in `src/` requires at least one test in the same change.

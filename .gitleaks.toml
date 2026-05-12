@@ -1,0 +1,28 @@
+# gitleaks configuration. Extends the default ruleset and adds an
+# allowlist so the obvious placeholders in .env.example and similar
+# template files do not flag the build.
+#
+# Reference: https://github.com/gitleaks/gitleaks
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Template placeholders that are not real secrets."
+
+paths = [
+    '''(.*/)?\.env\.example$''',
+    '''(.*/)?AGENTS\.md$''',
+    '''(.*/)?README\.md$''',
+    '''(.*/)?CLAUDE\.md$''',
+    '''(.*/)?\.cursor/rules/.*\.mdc$''',
+    '''(.*/)?docs/.*\.md$''',
+]
+
+regexes = [
+    '''sk-replace-me''',
+    '''sk-ant-replace-me''',
+    '''test-key-not-real''',
+    '''not-a-real-key''',
+    '''replace-me''',
+]

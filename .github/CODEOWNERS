@@ -1,0 +1,30 @@
+# CODEOWNERS for llm-uv-template.
+#
+# Lines are `<path-glob> <owner> [<owner> ...]` where each owner is a
+# GitHub username (`@user`) or team (`@org/team`). Owners listed for a
+# matching path are automatically requested for review when a PR touches
+# that path.
+#
+# This file is a TEMPLATE. Replace `@your-org/security-reviewers` and
+# `@your-org/maintainers` with real handles before relying on it. On a
+# repository with branch protection set to "Require review from Code
+# Owners", an unfilled CODEOWNERS file silently does nothing.
+#
+# See: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default fallback: every change needs a maintainer review.
+*                                   @your-org/maintainers
+
+# Security-critical paths require an extra security review.
+AGENTS.md                           @your-org/security-reviewers @your-org/maintainers
+CLAUDE.md                           @your-org/security-reviewers @your-org/maintainers
+SECURITY.md                         @your-org/security-reviewers @your-org/maintainers
+/.cursor/rules/                     @your-org/security-reviewers @your-org/maintainers
+/.cursor/hooks.json                 @your-org/security-reviewers @your-org/maintainers
+/.cursor/hooks/                     @your-org/security-reviewers @your-org/maintainers
+/.codex/config.toml                 @your-org/security-reviewers @your-org/maintainers
+/.claude/settings.json              @your-org/security-reviewers @your-org/maintainers
+/.github/workflows/                 @your-org/security-reviewers @your-org/maintainers
+/.github/dependabot.yml             @your-org/security-reviewers @your-org/maintainers
+/.gitleaks.toml                     @your-org/security-reviewers @your-org/maintainers
+/.devcontainer/                     @your-org/security-reviewers @your-org/maintainers

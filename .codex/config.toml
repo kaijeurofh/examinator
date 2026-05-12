@@ -1,0 +1,24 @@
+# Project-level Codex CLI configuration.
+#
+# Defaults are conservative on purpose: Codex must ask before running
+# arbitrary commands, can only write inside this workspace, and has no
+# outbound network access. Override per-session with CLI flags when you
+# genuinely need more (e.g. `codex --full-auto` or `codex --sandbox
+# danger-full-access`).
+#
+# Reference: https://developers.openai.com/codex/config-basic
+
+# Ask before executing shell commands the model proposes.
+# Options: "untrusted" | "on-request" | "never"
+approval_policy = "on-request"
+
+# Limit filesystem writes to this workspace; reads remain broader.
+# Options: "read-only" | "workspace-write" | "danger-full-access"
+sandbox_mode = "workspace-write"
+
+[sandbox_workspace_write]
+# Block outbound network calls by default. Most LLM-agent work does not need
+# the host's network: the agent talks to its provider via the configured
+# Python client, which Codex itself does not need to contact.
+# Flip to `true` if you are debugging a network-dependent integration.
+network_access = false
