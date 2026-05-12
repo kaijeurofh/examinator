@@ -23,7 +23,7 @@ FROM ghcr.io/astral-sh/uv:0.11.13@sha256:841c8e6fe30a8b07b4478d12d0c608cba6de661
 # Microsoft-maintained devcontainer base; tag pins the Python minor version
 # and Debian release, digest pins the exact build.
 # Resolved 2026-05-11 against mcr.microsoft.com/devcontainers/python:1-3.12-bookworm.
-FROM mcr.microsoft.com/devcontainers/python:1-3.12-bookworm@sha256:7876580dc67fd460fd962f004cbeb480027e9bbc0657096f1087db11f9eaff39
+FROM mcr.microsoft.com/devcontainers/python:3.14-bookworm@sha256:a06e5d2d016f1c2a17cac05f5b38287b3cd9cd71c8d6a43310191fdfd39bca2a
 
 ENV UV_LINK_MODE=copy \
     UV_NO_PROGRESS=1 \
