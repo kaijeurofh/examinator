@@ -1,8 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { ProgressTimeline } from "@/components/ProgressTimeline";
+import { useEffect, useMemo, useState } from "react";
+import {
+  ProgressTimeline,
+  currentStageTitle,
+  type TimedEvent,
+} from "@/components/ProgressTimeline";
 import { QuestionCard } from "@/components/QuestionCard";
 import {
   eventStreamUrl,
@@ -14,11 +18,22 @@ import {
 
 type Status = JobSnapshot["status"];
 
+const HEADLINES: Record<Status, string> = {
+  queued: "Job wird vorbereitet …",
+  running: "Fragen werden generiert",
+  done: "Fragen sind fertig",
+  error: "Job fehlgeschlagen",
+};
+
 export function JobView({ jobId }: { jobId: string }) {
-  const [events, setEvents] = useState<ProgressEventData[]>([]);
+  const [events, setEvents] = useState<TimedEvent[]>([]);
   const [status, setStatus] = useState<Status>("running");
   const [snapshot, setSnapshot] = useState<JobSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Startzeitpunkt der Anzeige für die Stoppuhr / ETA. Wird einmal beim
+  // Mount fixiert und nicht durch Reconnects/Re-Renders verschoben.
+  const startedAt = useMemo(() => Date.now(), []);
 
   useEffect(() => {
     let cancelled = false;
@@ -29,11 +44,11 @@ export function JobView({ jobId }: { jobId: string }) {
       try {
         const data = JSON.parse(ev.data) as ProgressEventData;
         if (cancelled) return;
-        setEvents((prev) => [...prev, data]);
+        const timed: TimedEvent = { ev: data, receivedAt: Date.now() };
+        setEvents((prev) => [...prev, timed]);
         if (data.stage === "done") {
           setStatus("done");
           source.close();
-          // Pull the final result.
           getJob(jobId)
             .then((s) => {
               if (!cancelled) setSnapshot(s);
@@ -52,8 +67,6 @@ export function JobView({ jobId }: { jobId: string }) {
       }
     };
 
-    // sse-starlette emits one named event per stage; subscribe to a known
-    // set so we receive every progress update.
     const stages = [
       "queued",
       "parsing",
@@ -70,7 +83,6 @@ export function JobView({ jobId }: { jobId: string }) {
 
     source.onerror = () => {
       if (cancelled) return;
-      // Only treat as error if we have not already terminated.
       if (status === "running") {
         setError("Verbindung zum Server unterbrochen.");
         setStatus("error");
@@ -85,6 +97,11 @@ export function JobView({ jobId }: { jobId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jobId]);
 
+  const stageSubtitle =
+    status === "running" || status === "queued"
+      ? currentStageTitle(events, status)
+      : null;
+
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
@@ -93,8 +110,13 @@ export function JobView({ jobId }: { jobId: string }) {
             Job {jobId.slice(0, 8)}
           </p>
           <h1 className="text-2xl font-semibold text-slate-900">
-            Fragen werden generiert
+            {HEADLINES[status]}
           </h1>
+          {stageSubtitle && (
+            <p className="mt-1 text-sm text-slate-600">
+              Aktuell: {stageSubtitle}
+            </p>
+          )}
         </div>
         <Link
           href="/"
@@ -108,7 +130,11 @@ export function JobView({ jobId }: { jobId: string }) {
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
           Fortschritt
         </h2>
-        <ProgressTimeline events={events} status={status} />
+        <ProgressTimeline
+          events={events}
+          status={status}
+          startedAt={startedAt}
+        />
         {error && (
           <p className="mt-3 rounded-xl border border-red-300 bg-red-50 px-4 py-2 text-sm text-red-700">
             {error}
