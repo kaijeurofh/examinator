@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from examinator.core.chunking import chunk_pages
-from examinator.core.pdf_parser import PageText, pages_from_plaintext
+from examinator.core.pdf_parser import PageText, PdfParseError, pages_from_plaintext
 
 
 def _page(num: int, text: str) -> PageText:
@@ -67,7 +67,5 @@ def test_pages_from_plaintext_splits_into_pseudo_pages() -> None:
 
 
 def test_pages_from_plaintext_rejects_empty() -> None:
-    from examinator.core.pdf_parser import PdfParseError
-
     with pytest.raises(PdfParseError):
         pages_from_plaintext("   \n\n   ")

@@ -14,12 +14,21 @@ is capped to keep token cost and latency predictable.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from itertools import pairwise
 
 from examinator.core.pdf_parser import PageText
 
 DEFAULT_CHUNK_CHARS = 8_000
 DEFAULT_OVERLAP_CHARS = 800
 DEFAULT_MAX_CHUNKS = 8
+
+# Hard floor on per-chunk character budget: below this, even short prompts get
+# fragmented enough to lose coherence.
+_MIN_CHUNK_CHARS = 500
+
+# Cap on the doubling loop that re-balances chunk count. Doubling halves the
+# count per iteration, so this is a safety net (O(log n) converges fast).
+_MAX_REBALANCE_ITERATIONS = 10
 
 
 @dataclass(frozen=True, slots=True)
@@ -57,8 +66,8 @@ def chunk_pages(
     """
     if not pages:
         return []
-    if max_chars < 500:
-        raise ValueError("max_chars must be >= 500")
+    if max_chars < _MIN_CHUNK_CHARS:
+        raise ValueError(f"max_chars must be >= {_MIN_CHUNK_CHARS}")
     if overlap_chars < 0 or overlap_chars >= max_chars:
         raise ValueError("overlap_chars must be in [0, max_chars)")
     if max_chunks < 1:
@@ -69,7 +78,7 @@ def chunk_pages(
     # Re-balance if we overshot. Doubling the budget halves chunk count, so a
     # tight loop converges in O(log n) iterations.
     iterations = 0
-    while len(chunks) > max_chunks and iterations < 10:
+    while len(chunks) > max_chunks and iterations < _MAX_REBALANCE_ITERATIONS:
         max_chars *= 2
         overlap_chars = min(overlap_chars, max_chars - 1)
         chunks = _build_chunks(pages, max_chars=max_chars, overlap_chars=overlap_chars)
@@ -103,7 +112,7 @@ def _build_chunks(
         return raw
 
     overlapped: list[Chunk] = [raw[0]]
-    for prev, curr in zip(raw, raw[1:], strict=True):
+    for prev, curr in pairwise(raw):
         tail = prev.text[-overlap_chars:]
         overlapped.append(
             Chunk(

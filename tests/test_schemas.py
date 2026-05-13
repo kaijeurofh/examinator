@@ -123,9 +123,7 @@ def test_job_config_rejects_unknown_task_type() -> None:
 def test_job_config_extra_forbid() -> None:
     """Typos in field names should fail loudly, not get silently dropped."""
     with pytest.raises(ValidationError):
-        HausarbeitJobConfig.model_validate(
-            {"task_type": "hausarbeit", "unkown_field": True}
-        )
+        HausarbeitJobConfig.model_validate({"task_type": "hausarbeit", "unkown_field": True})
 
 
 def test_projektarbeit_execution_format_default() -> None:

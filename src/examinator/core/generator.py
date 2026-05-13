@@ -43,6 +43,11 @@ _logger = logging.getLogger(__name__)
 
 _MAX_CANDIDATES_FORWARDED = 40
 
+# Hard contract: the reducer must emit exactly this many final questions.
+# Documented in user-facing prompts and in the Excel export, so changing it
+# without updating those would break the public surface.
+_FINAL_QUESTION_COUNT = 10
+
 ResultCallback = Callable[[PageQuestions], Awaitable[None]]  # type: ignore[type-arg]
 
 
@@ -94,7 +99,7 @@ async def run_generation(
     plaintext: str | None,
     max_chunks: int = 8,
     on_result: ResultCallback | None = None,
-    model: "str | Model | None" = None,
+    model: str | Model | None = None,
 ) -> AsyncIterator[ProgressEvent]:
     """Run the full pipeline and yield progress events.
 
@@ -139,7 +144,7 @@ async def run_generation(
         )
         try:
             run = await candidate_agent.run(_format_chunk_user_prompt(chunk))
-        except Exception as exc:  # noqa: BLE001 - LLM/network errors vary by provider
+        except Exception as exc:
             _logger.exception("candidate run failed", extra={"chunk_index": i})
             yield ProgressEvent(
                 stage="error",
@@ -175,16 +180,18 @@ async def run_generation(
     reducer = build_reducer_agent(config, model=model)
     try:
         reduce_run = await reducer.run(_format_reducer_user_prompt(pool_container))
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         _logger.exception("reducer run failed")
         yield ProgressEvent(stage="error", message=f"Reduce-Schritt fehlgeschlagen: {exc}")
         return
 
     final: PageQuestions = reduce_run.output  # type: ignore[assignment]
 
-    # Enforce the contract: trim if the LLM ignored the "exactly 10" instruction.
-    if len(final.questions) > 10:
-        final = PageQuestions(questions=final.questions[:10])  # type: ignore[arg-type]
+    # Enforce the contract: trim if the LLM ignored the "exactly N" instruction.
+    if len(final.questions) > _FINAL_QUESTION_COUNT:
+        final = PageQuestions(  # type: ignore[arg-type]
+            questions=final.questions[:_FINAL_QUESTION_COUNT],
+        )
 
     if on_result is not None:
         await on_result(final)
@@ -193,5 +200,5 @@ async def run_generation(
         stage="done",
         message=f"Fertig. {len(final.questions)} Fragen generiert.",
         current=len(final.questions),
-        total=10,
+        total=_FINAL_QUESTION_COUNT,
     )

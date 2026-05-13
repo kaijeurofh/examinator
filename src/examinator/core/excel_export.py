@@ -17,11 +17,7 @@ from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
 
 from examinator.core.schemas import (
-    EinsendeaufgabeQAPair,
-    HausarbeitQAPair,
-    KlausurQAPair,
     PageQuestions,
-    ProjektarbeitQAPair,
     QAPair,
     TaskType,
 )
@@ -147,11 +143,7 @@ def _write_rows(
     for row_offset, question in enumerate(questions, start=2):
         row_index = row_offset - 1
         for col_idx, (_, attr, _, wrap) in enumerate(columns, start=1):
-            value: object
-            if attr == "_index":
-                value = row_index
-            else:
-                value = _coerce(getattr(question, attr, ""))
+            value: object = row_index if attr == "_index" else _coerce(getattr(question, attr, ""))
             cell = sheet.cell(row=row_offset, column=col_idx, value=value)
             cell.alignment = _WRAP if wrap else _TOP
 

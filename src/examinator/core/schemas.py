@@ -68,9 +68,7 @@ class _BaseQAPair(BaseModel):
     guideline_examiner: str = Field(
         description="Short paragraph (2-4 sentences) on evaluation focus."
     )
-    guideline_student: str = Field(
-        description="Structured step-by-step roadmap for students."
-    )
+    guideline_student: str = Field(description="Structured step-by-step roadmap for students.")
     source_page: int = Field(
         ge=1, description="1-based page number of the source material this is grounded in."
     )
@@ -142,7 +140,7 @@ T = TypeVar(
 )
 
 
-class PageQuestions(BaseModel, Generic[T]):
+class PageQuestions(BaseModel, Generic[T]):  # noqa: UP046 - PEP 695 syntax breaks pydantic-ai's generic resolution for output_type
     """Container the LLM is asked to return per prompt run."""
 
     questions: list[T] = Field(default_factory=list)
@@ -192,10 +190,7 @@ class EinsendeaufgabeJobConfig(_BaseJobConfig):
 
 
 JobConfig = Annotated[
-    HausarbeitJobConfig
-    | ProjektarbeitJobConfig
-    | KlausurJobConfig
-    | EinsendeaufgabeJobConfig,
+    HausarbeitJobConfig | ProjektarbeitJobConfig | KlausurJobConfig | EinsendeaufgabeJobConfig,
     Field(discriminator="task_type"),
 ]
 

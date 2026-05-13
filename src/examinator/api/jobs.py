@@ -13,6 +13,7 @@ does not grow unbounded.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import time
 import uuid
@@ -54,10 +55,8 @@ class Job:
 
     def close_subscribers(self) -> None:
         for q in list(self.subscribers):
-            try:
+            with contextlib.suppress(asyncio.QueueFull):  # pragma: no cover
                 q.put_nowait(_DONE)
-            except asyncio.QueueFull:  # pragma: no cover
-                pass
 
 
 class JobStore:
@@ -106,10 +105,9 @@ class JobStore:
                     return
                 yield item  # type: ignore[misc]
         finally:
-            try:
+            # pragma: no cover - already removed
+            with contextlib.suppress(ValueError):
                 job.subscribers.remove(queue)
-            except ValueError:  # pragma: no cover - already removed
-                pass
 
     async def start_janitor(self) -> None:
         if self._janitor is None or self._janitor.done():
@@ -118,10 +116,8 @@ class JobStore:
     async def stop_janitor(self) -> None:
         if self._janitor is not None and not self._janitor.done():
             self._janitor.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._janitor
-            except asyncio.CancelledError:
-                pass
 
     async def _janitor_loop(self) -> None:
         try:
@@ -132,8 +128,7 @@ class JobStore:
                     expired = [
                         jid
                         for jid, job in self._jobs.items()
-                        if job.finished_at is not None
-                        and now - job.finished_at > self._ttl
+                        if job.finished_at is not None and now - job.finished_at > self._ttl
                     ]
                     for jid in expired:
                         _logger.info("evicting job %s after TTL", jid)

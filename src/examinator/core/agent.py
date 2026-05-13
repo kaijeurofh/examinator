@@ -18,17 +18,29 @@ Model selection (via env vars, so the same code services every provider):
 
 Structured-output strategy is controlled by ``EXAMINATOR_OUTPUT_MODE``:
 
-* ``tool`` (default) — pydantic-ai's native tool-calling. Best for OpenAI,
-  Anthropic, Gemini.
+* ``tool`` (default) — pydantic-ai's native tool-calling. Reliable on
+  OpenAI / Anthropic / Gemini. Gemma 4 (released April 2026) also supports
+  native tool-calls, but Ollama's chat-template integration varies by
+  build, so ``prompted`` remains the conservative default for the lokal
+  branch.
 * ``prompted`` — the JSON schema is inlined into the system prompt and the
-  model is asked to return raw JSON. Robust fallback for local models
-  without reliable tool-calling (e.g. Gemma).
+  model is asked to return raw JSON. Robust fallback for older local
+  models (Gemma 2/3, smaller Llamas, Mistral 7B) and the safe default for
+  the lokal branch while Gemma 4's tool-template support stabilises across
+  Ollama builds.
+* ``native`` (experimental) — pydantic-ai passes the schema via
+  ``response_format`` (OpenAI-style structured output). Self-hosted Ollama
+  >= 0.5.0 *should* honour this via llama.cpp's grammar-constrained
+  decoder, but Ollama's OpenAI-compat layer does not always enforce
+  ``response_format`` reliably (pydantic-ai issue #4917). Validate against
+  the real schemas via ``scripts/benchmark_local.py`` before promoting it
+  to the default.
 """
 
 from __future__ import annotations
 
 import os
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Literal, cast
 
 from pydantic_ai import Agent
 
@@ -50,16 +62,33 @@ DEFAULT_MODEL = "openai:gpt-5.2"
 DEFAULT_OLLAMA_BASE_URL = "http://host.docker.internal:11434/v1"
 DEFAULT_OLLAMA_MODEL = "gemma4:31b"
 
+OutputMode = Literal["tool", "prompted", "native"]
+
 
 def _is_ollama() -> bool:
     return os.getenv("EXAMINATOR_LLM_PROVIDER", "openai").lower() == "ollama"
 
 
+def _output_mode() -> OutputMode:
+    """Resolve ``EXAMINATOR_OUTPUT_MODE`` to one of the three supported values.
+
+    A typo or unknown value falls back to ``tool`` (pydantic-ai's own default).
+    That keeps the failure mode obvious: a misspelled mode is downgraded to
+    the *least* enforced path with an explicit choice, rather than silently
+    pretending to be ``native`` / ``prompted``.
+    """
+    raw = os.getenv("EXAMINATOR_OUTPUT_MODE", "tool").lower()
+    if raw in ("tool", "prompted", "native"):
+        return cast("OutputMode", raw)
+    return "tool"
+
+
 def _is_prompted() -> bool:
-    return os.getenv("EXAMINATOR_OUTPUT_MODE", "tool").lower() == "prompted"
+    """Backwards-compatible shim for the ``prompted`` boolean check."""
+    return _output_mode() == "prompted"
 
 
-def _build_model() -> "str | Model":
+def _build_model() -> str | Model:
     """Pick a pydantic-ai model object/string based on env vars.
 
     ``EXAMINATOR_LLM_PROVIDER=ollama`` switches to a locally hosted Ollama
@@ -69,8 +98,8 @@ def _build_model() -> "str | Model":
     """
     if _is_ollama():
         # Local imports so the OpenAI SDK is only required on the lokal branch.
-        from pydantic_ai.models.openai import OpenAIChatModel
-        from pydantic_ai.providers.openai import OpenAIProvider
+        from pydantic_ai.models.openai import OpenAIChatModel  # noqa: PLC0415 - lazy
+        from pydantic_ai.providers.openai import OpenAIProvider  # noqa: PLC0415 - lazy
 
         base_url = os.getenv("OLLAMA_BASE_URL", DEFAULT_OLLAMA_BASE_URL)
         model_name = os.getenv("OLLAMA_MODEL", DEFAULT_OLLAMA_MODEL)
@@ -82,7 +111,7 @@ def _build_model() -> "str | Model":
     return os.getenv("PYDANTIC_AI_MODEL") or DEFAULT_MODEL
 
 
-def _selected_model(model: "str | Model | None") -> "str | Model":
+def _selected_model(model: str | Model | None) -> str | Model:
     if model is not None:
         return model
     return _build_model()
@@ -103,25 +132,39 @@ def _qa_pair_schema(task: TaskType) -> type[PageQuestions]:  # type: ignore[type
 def _output_type_for(task: TaskType) -> object:
     """Return the concrete output specification for ``task``.
 
-    Honours ``EXAMINATOR_OUTPUT_MODE``: ``tool`` (default) returns the bare
-    ``PageQuestions[T]`` class so pydantic-ai issues a native tool call;
-    ``prompted`` wraps it in ``PromptedOutput`` which inlines the JSON
-    schema into the system prompt instead — essential for local models
-    without robust tool-calling.
+    Honours ``EXAMINATOR_OUTPUT_MODE``:
+
+    * ``tool`` (default) returns the bare ``PageQuestions[T]`` class so
+      pydantic-ai issues a native tool call. Reliable on OpenAI / Anthropic
+      / Gemini; Gemma 4 supports tool-calls natively as well but Ollama
+      chat-template integration varies between builds.
+    * ``prompted`` wraps it in :class:`pydantic_ai.output.PromptedOutput`,
+      which inlines the JSON schema into the system prompt. Default on the
+      lokal branch and the robust fallback for any local model where native
+      tool-calls are flaky.
+    * ``native`` wraps it in :class:`pydantic_ai.output.NativeOutput`, which
+      passes the schema via ``response_format``. Experimental against
+      Ollama's OpenAI-compat endpoint (see pydantic-ai issue #4917); use
+      ``scripts/benchmark_local.py`` to validate before relying on it.
     """
     schema_cls = _qa_pair_schema(task)
-    if _is_prompted():
+    mode = _output_mode()
+    if mode == "prompted":
         # Local import so we don't pay the cost when running in tool mode.
-        from pydantic_ai.output import PromptedOutput
+        from pydantic_ai.output import PromptedOutput  # noqa: PLC0415 - lazy
 
         return PromptedOutput(schema_cls)
+    if mode == "native":
+        from pydantic_ai.output import NativeOutput  # noqa: PLC0415 - lazy
+
+        return NativeOutput(schema_cls)
     return schema_cls
 
 
 def build_candidate_agent(
     config: JobConfig,
     *,
-    model: "str | Model | None" = None,
+    model: str | Model | None = None,
 ) -> Agent[None, PageQuestions]:  # type: ignore[type-arg]
     """Build the per-chunk candidate-generation agent for the given job."""
     return Agent(
@@ -134,7 +177,7 @@ def build_candidate_agent(
 def build_reducer_agent(
     config: JobConfig,
     *,
-    model: "str | Model | None" = None,
+    model: str | Model | None = None,
 ) -> Agent[None, PageQuestions]:  # type: ignore[type-arg]
     """Build the final reducer agent that selects exactly 10 questions."""
     return Agent(
@@ -148,7 +191,7 @@ def build_agent_for_task(
     config: JobConfig,
     *,
     stage: str = "candidate",
-    model: "str | Model | None" = None,
+    model: str | Model | None = None,
 ) -> Agent[None, PageQuestions]:  # type: ignore[type-arg]
     """Convenience entry-point used in tests and from the public package API."""
     if stage == "reducer":

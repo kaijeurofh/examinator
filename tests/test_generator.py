@@ -65,9 +65,7 @@ def stub_agents(monkeypatch: pytest.MonkeyPatch) -> list[str]:
 
     def candidate_factory(prompt: str) -> PageQuestions[HausarbeitQAPair]:
         seen.append(f"candidate:{prompt[:30]}")
-        return PageQuestions[HausarbeitQAPair](
-            questions=[_pair(idx=i) for i in range(2)]
-        )
+        return PageQuestions[HausarbeitQAPair](questions=[_pair(idx=i) for i in range(2)])
 
     def reducer_factory(prompt: str) -> PageQuestions[HausarbeitQAPair]:
         seen.append(f"reducer:{prompt[:30]}")
@@ -75,10 +73,10 @@ def stub_agents(monkeypatch: pytest.MonkeyPatch) -> list[str]:
             questions=[_pair(idx=i) for i in range(12)]  # 12 > 10 -> must be trimmed
         )
 
-    def fake_candidate(config: Any, model: Any = None) -> _StubAgent:  # noqa: ANN401, ARG001
+    def fake_candidate(config: Any, model: Any = None) -> _StubAgent:  # noqa: ARG001
         return _StubAgent(candidate_factory)
 
-    def fake_reducer(config: Any, model: Any = None) -> _StubAgent:  # noqa: ANN401, ARG001
+    def fake_reducer(config: Any, model: Any = None) -> _StubAgent:  # noqa: ARG001
         return _StubAgent(reducer_factory)
 
     monkeypatch.setattr(gen_module, "build_candidate_agent", fake_candidate)
@@ -130,7 +128,5 @@ async def test_run_generation_yields_expected_stages_and_caps_at_ten(
 
 async def test_run_generation_requires_some_input() -> None:
     config = HausarbeitJobConfig(task_type=TaskType.HAUSARBEIT)
-    events = await _collect(
-        run_generation(config, pdf_bytes=None, plaintext=None, max_chunks=2)
-    )
+    events = await _collect(run_generation(config, pdf_bytes=None, plaintext=None, max_chunks=2))
     assert events[-1].stage == "error"

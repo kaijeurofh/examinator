@@ -24,6 +24,10 @@ from pypdf.errors import PdfReadError, PyPdfError
 # against page granularity for the `source_page` field.
 _DEFAULT_PSEUDO_PAGE_CHARS = 3_000
 
+# Hard floor on pseudo-page size: below this the snap-to-paragraph heuristic
+# loses headroom and pages get split mid-sentence.
+_MIN_PSEUDO_PAGE_CHARS = 200
+
 
 class PdfParseError(RuntimeError):
     """Raised when the input PDF cannot be read or is empty."""
@@ -85,8 +89,8 @@ def pages_from_plaintext(
     the last 20% of the slice; this keeps each `source_page` semantically
     coherent and avoids splitting mid-sentence.
     """
-    if page_size_chars < 200:
-        raise ValueError("page_size_chars must be >= 200")
+    if page_size_chars < _MIN_PSEUDO_PAGE_CHARS:
+        raise ValueError(f"page_size_chars must be >= {_MIN_PSEUDO_PAGE_CHARS}")
     cleaned = _normalise(text)
     if not cleaned:
         raise PdfParseError("No text content provided.")

@@ -12,6 +12,11 @@ import inspect
 
 import pytest
 
+# Pre-import the symbols we'll need at test time so an ImportError surfaces
+# as a collection error rather than a confusing AssertionError later.
+from pydantic_ai.models.openai import OpenAIChatModel
+from pydantic_ai.output import NativeOutput, PromptedOutput
+
 from examinator.core import agent as agent_module
 from examinator.core.agent import (
     DEFAULT_MODEL,
@@ -26,11 +31,6 @@ from examinator.core.schemas import (
     KlausurJobConfig,
     TaskType,
 )
-
-# Pre-import the symbols we'll need at test time so an ImportError surfaces
-# as a collection error rather than a confusing AssertionError later.
-from pydantic_ai.models.openai import OpenAIChatModel
-from pydantic_ai.output import PromptedOutput
 
 # ---------------------------------------------------------------------------
 # _build_model
@@ -100,6 +100,7 @@ def test_output_type_for_tool_mode_returns_a_class(
     # alias resolves to a concrete subclass in pydantic v2).
     assert inspect.isclass(out)
     assert not isinstance(out, PromptedOutput)
+    assert not isinstance(out, NativeOutput)
 
 
 def test_output_type_for_prompted_mode_wraps_in_prompted_output(
@@ -109,6 +110,33 @@ def test_output_type_for_prompted_mode_wraps_in_prompted_output(
     monkeypatch.setenv("EXAMINATOR_OUTPUT_MODE", "prompted")
     out = _output_type_for(TaskType.KLAUSUR)
     assert isinstance(out, PromptedOutput)
+
+
+def test_output_type_for_native_mode_wraps_in_native_output(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``native`` mode must produce a :class:`NativeOutput` wrapper so that
+    pydantic-ai forwards the JSON schema via ``response_format`` instead of
+    inlining it into the prompt.
+    """
+    _clear_provider_env(monkeypatch)
+    monkeypatch.setenv("EXAMINATOR_OUTPUT_MODE", "native")
+    out = _output_type_for(TaskType.HAUSARBEIT)
+    assert isinstance(out, NativeOutput)
+
+
+def test_output_type_for_unknown_mode_falls_back_to_tool(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A misspelled ``EXAMINATOR_OUTPUT_MODE`` must not silently degrade into
+    one of the strict wrappers; it falls back to the bare class (tool mode).
+    """
+    _clear_provider_env(monkeypatch)
+    monkeypatch.setenv("EXAMINATOR_OUTPUT_MODE", "definitely-not-a-mode")
+    out = _output_type_for(TaskType.KLAUSUR)
+    assert inspect.isclass(out)
+    assert not isinstance(out, PromptedOutput)
+    assert not isinstance(out, NativeOutput)
 
 
 def test_output_type_for_each_task_type_has_distinct_class(
@@ -163,8 +191,20 @@ def test_is_helpers_react_to_env(monkeypatch: pytest.MonkeyPatch) -> None:
     _clear_provider_env(monkeypatch)
     assert agent_module._is_ollama() is False
     assert agent_module._is_prompted() is False
+    assert agent_module._output_mode() == "tool"
 
     monkeypatch.setenv("EXAMINATOR_LLM_PROVIDER", "OLLAMA")  # case-insensitive
     monkeypatch.setenv("EXAMINATOR_OUTPUT_MODE", "Prompted")
     assert agent_module._is_ollama() is True
     assert agent_module._is_prompted() is True
+    assert agent_module._output_mode() == "prompted"
+
+
+def test_output_mode_recognises_native(monkeypatch: pytest.MonkeyPatch) -> None:
+    """``_output_mode`` must accept ``native`` (case-insensitive) and the
+    legacy ``_is_prompted`` shim must report ``False`` for it.
+    """
+    _clear_provider_env(monkeypatch)
+    monkeypatch.setenv("EXAMINATOR_OUTPUT_MODE", "Native")
+    assert agent_module._output_mode() == "native"
+    assert agent_module._is_prompted() is False

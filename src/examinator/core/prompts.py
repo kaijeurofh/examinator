@@ -467,15 +467,11 @@ def _common_format_args(config: JobConfig) -> dict[str, str | int]:
     scope = config.scope_override or _DEFAULT_SCOPE[task_type]
     total_points = config.total_points or _DEFAULT_TOTAL_POINTS[task_type]
     level = config.academic_level
-    if isinstance(level, AcademicLevel):
-        level_str = level.value
-    else:
-        level_str = str(level)
+    level_str = level.value if isinstance(level, AcademicLevel) else str(level)
     return {
         "language": config.language,
         "extraction_instructions": (
-            config.extraction_instructions.strip()
-            or "Keine zusaetzlichen Anweisungen."
+            config.extraction_instructions.strip() or "Keine zusaetzlichen Anweisungen."
         ),
         "core_topics": _core_topics_block(config.core_topics),
         "academic_level": level_str,

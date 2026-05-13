@@ -58,9 +58,7 @@ def patched_generator(monkeypatch: pytest.MonkeyPatch) -> None:
         yield ProgressEvent(stage="chunk_done", current=1, total=1)
         if on_result is not None:
             await on_result(
-                PageQuestions[HausarbeitQAPair](
-                    questions=[_pair(i) for i in range(1, 11)]
-                )
+                PageQuestions[HausarbeitQAPair](questions=[_pair(i) for i in range(1, 11)])
             )
         yield ProgressEvent(stage="done", current=10, total=10)
 

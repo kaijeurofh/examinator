@@ -185,7 +185,7 @@ async def _run_job(
             final_stage = event.stage
             if event.stage == "error":
                 job.error = event.message
-    except Exception as exc:  # noqa: BLE001 - terminal failure path
+    except Exception as exc:
         _logger.exception("job %s crashed", job.id)
         job.error = str(exc)
         job.fanout(ProgressEvent(stage="error", message=str(exc)))
@@ -260,8 +260,6 @@ async def download_excel(
     filename = filename_for(task_type)
     return StreamingResponse(
         iter([job.excel_bytes]),
-        media_type=(
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        ),
+        media_type=("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

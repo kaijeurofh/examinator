@@ -189,21 +189,63 @@ export EXAMINATOR_OUTPUT_MODE=prompted
 uv run examinator-serve --reload
 ```
 
-### Output-Modus: tool vs. prompted
+### Output-Modus: tool vs. prompted vs. native
 
 `EXAMINATOR_OUTPUT_MODE` steuert, wie pydantic-ai das strukturierte
 JSON-Ergebnis erzwingt:
 
-| Wert       | Verhalten                                                                  | Wann nutzen                                   |
-| ---------- | -------------------------------------------------------------------------- | --------------------------------------------- |
-| `tool`     | Native Function-/Tool-Calls (Default fuer OpenAI/Anthropic/Gemini).        | Cloud-Provider, GPT-4/5, Claude, Gemini.      |
-| `prompted` | JSON-Schema wird in den System-Prompt eingebettet und die Antwort geparst. | Lokale Modelle, insb. Gemma. Default auf `examinator-lokal`. |
+| Wert       | Verhalten                                                                                     | Wann nutzen                                                                 |
+| ---------- | --------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `tool`     | Native Function-/Tool-Calls (Default fuer OpenAI/Anthropic/Gemini).                           | Cloud-Provider, GPT-4/5, Claude, Gemini. Gemma 4 ggf. ebenfalls (A/B-Test). |
+| `prompted` | JSON-Schema wird in den System-Prompt eingebettet und die Antwort geparst.                    | Lokale Modelle, robuster Fallback. **Default auf `examinator-lokal`.**      |
+| `native`   | JSON-Schema wird via `response_format` durchgereicht (OpenAI-Style Structured Outputs).       | Experimentell gegen Ollama (pydantic-ai #4917); erst per Benchmark validieren. |
+
+Hintergrund Gemma: Gemma 2/3 hatte kein verlaessliches Tool-Calling-Template
+in Ollama. Gemma 4 (April 2026) bringt natives Function Calling im OpenAI-
+Format mit, die Chat-Template-Integration in Ollama variiert aber je nach
+Build. Deshalb bleibt `prompted` der konservative Default auf diesem
+Branch; `tool` und `native` sind einen Versuch wert, sobald die eigene
+Ollama-Version sie sauber bedient.
 
 Wenn `gemma4:31b` mit `prompted` mal eine ungueltige JSON-Antwort liefert,
 ist das ein Modell- bzw. Kontextlimit-Problem; entweder
 `EXAMINATOR_MAX_CHUNKS` reduzieren oder auf ein groesseres Quant
-ausweichen. Tool-Calling mit Gemma ist in den meisten Ollama-Builds noch
-nicht stabil und wird daher hier nicht empfohlen.
+ausweichen.
+
+### Alternative lokale Modelle
+
+`gemma4:31b` ist der Default, weil Gemma 4 31B aktuell der Open-Weights-
+Spitzenreiter auf MMMLU (Multilingual MMLU) ist — also genau der Achse, die
+fuer deutschsprachige Klausurfragen zaehlt. Auf einer RTX 5090 (32 GB
+VRAM) belegt das Q4_K_M-Quant rund 20 GB und laesst ausreichend Spielraum
+fuer Kontext.
+
+Wenn du primaer auf Function-Calling-Robustheit optimieren willst (z. B.
+weil ihr in Zukunft Multi-Tool-Workflows fahren wollt), ist **Qwen 3 32B**
+laut BFCL v4 die staerkste lokale Option:
+
+```bash
+ollama pull qwen3:32b-q4_K_M
+# dann in der env / docker-compose ueberschreiben:
+OLLAMA_MODEL=qwen3:32b-q4_K_M
+```
+
+VRAM-Bedarf vergleichbar (~19-20 GB Q4_K_M), Tool-Calling-Treue
+typischerweise hoeher. Welches Modell fuer **deine** Schemas und
+PDF-Inhalte tatsaechlich die besseren Klausurfragen liefert, beantwortet
+nur ein A/B-Test — dafuer gibt es `scripts/benchmark_local.py`:
+
+```bash
+uv run python scripts/benchmark_local.py \
+    --pdf path/to/sample.pdf \
+    --task klausur \
+    --out benchmark.md
+```
+
+Das Skript fuehrt die Pipeline gegen die Kreuzmenge der konfigurierten
+Modelle und Output-Modi aus und schreibt eine Markdown-Tabelle mit
+Latenz, Validation-Retries und Schema-Validitaet je Kombination. Erst
+danach gegebenenfalls den Default in `docker-compose.yml` umstellen.
 
 ### Zurueck auf OpenAI wechseln
 

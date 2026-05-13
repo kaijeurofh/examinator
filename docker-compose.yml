@@ -59,8 +59,12 @@ services:
       # Windows/Mac provides it automatically; on Linux see extra_hosts below.
       OLLAMA_BASE_URL: http://host.docker.internal:11434/v1
       OLLAMA_MODEL: gemma4:31b
-      # Gemma family has no first-class tool-calling template in many Ollama
-      # builds; PromptedOutput is the more reliable mode for our schemas.
+      # Gemma 2/3 had no first-class tool-calling template in Ollama; Gemma 4
+      # supports native tool-calls, but the chat-template integration varies
+      # between Ollama builds. `prompted` remains the conservative default for
+      # our nested schemas. Switch to `tool` (when Ollama's template ships
+      # cleanly) or the experimental `native` mode -- see
+      # scripts/benchmark_local.py for an A/B harness.
       EXAMINATOR_OUTPUT_MODE: prompted
     extra_hosts:
       # No-op on Docker Desktop (Win/Mac); required on Linux so the backend
