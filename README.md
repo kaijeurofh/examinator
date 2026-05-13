@@ -133,7 +133,7 @@ eigenen GPU. Auf einer RTX 5090 (32 GB VRAM) laeuft das mitgelieferte
 `docker-compose.yml` auf diesem Branch ist bereits vorkonfiguriert: das
 Backend bekommt `EXAMINATOR_LLM_PROVIDER=ollama`,
 `OLLAMA_BASE_URL=http://host.docker.internal:11434/v1`,
-`OLLAMA_MODEL=gemma4:31b` und `EXAMINATOR_OUTPUT_MODE=prompted`. Auf Linux
+`OLLAMA_MODEL=gemma4:31b` und `EXAMINATOR_OUTPUT_MODE=tool`. Auf Linux
 sorgt der `extra_hosts: host.docker.internal:host-gateway`-Eintrag dafuer,
 dass der Backend-Container den Host-Daemon trotzdem erreicht.
 
@@ -184,7 +184,7 @@ docker compose up --build       # OpenAI-Stack:  http://localhost:3030
 export EXAMINATOR_LLM_PROVIDER=ollama
 export OLLAMA_BASE_URL=http://localhost:11434/v1
 export OLLAMA_MODEL=gemma4:31b
-export EXAMINATOR_OUTPUT_MODE=prompted
+export EXAMINATOR_OUTPUT_MODE=tool
 
 uv run examinator-serve --reload
 ```
@@ -194,23 +194,25 @@ uv run examinator-serve --reload
 `EXAMINATOR_OUTPUT_MODE` steuert, wie pydantic-ai das strukturierte
 JSON-Ergebnis erzwingt:
 
-| Wert       | Verhalten                                                                                     | Wann nutzen                                                                 |
-| ---------- | --------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| `tool`     | Native Function-/Tool-Calls (Default fuer OpenAI/Anthropic/Gemini).                           | Cloud-Provider, GPT-4/5, Claude, Gemini. Gemma 4 ggf. ebenfalls (A/B-Test). |
-| `prompted` | JSON-Schema wird in den System-Prompt eingebettet und die Antwort geparst.                    | Lokale Modelle, robuster Fallback. **Default auf `examinator-lokal`.**      |
-| `native`   | JSON-Schema wird via `response_format` durchgereicht (OpenAI-Style Structured Outputs).       | Experimentell gegen Ollama (pydantic-ai #4917); erst per Benchmark validieren. |
+| Wert       | Verhalten                                                                                     | Wann nutzen                                                                          |
+| ---------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `tool`     | Native Function-/Tool-Calls.                                                                  | Default auf `examinator-lokal`. OpenAI/Anthropic/Gemini *und* Gemma 4 via Ollama.    |
+| `prompted` | JSON-Schema wird in den System-Prompt eingebettet und die Antwort geparst.                    | Fallback fuer aeltere Modelle ohne Tool-Call-Template (Gemma 2/3, kleine Llamas).    |
+| `native`   | JSON-Schema wird via `response_format` durchgereicht (OpenAI-Style Structured Outputs).       | Experimentell gegen Ollama (pydantic-ai #4917); erst per Benchmark validieren.       |
 
-Hintergrund Gemma: Gemma 2/3 hatte kein verlaessliches Tool-Calling-Template
-in Ollama. Gemma 4 (April 2026) bringt natives Function Calling im OpenAI-
-Format mit, die Chat-Template-Integration in Ollama variiert aber je nach
-Build. Deshalb bleibt `prompted` der konservative Default auf diesem
-Branch; `tool` und `native` sind einen Versuch wert, sobald die eigene
-Ollama-Version sie sauber bedient.
+**Warum `tool` der Default ist:** Ein A/B-Lauf mit
+`scripts/benchmark_local.py` gegen ein echtes Studienheft-PDF (siehe unten)
+hat klar gezeigt, dass `prompted` mit `gemma4:31b` *nicht* funktioniert.
+Gemma 4 emittiert ueber die Ollama-Chat-Template-Integration Reasoning-
+Tokens vor dem JSON; unser verschachteltes `PageQuestions[T]`-Schema
+verwirft diese Antworten dann komplett (Status: `Keine Kandidatenfragen
+erzeugt.`). Im `tool`-Modus laeuft derselbe Job reproduzierbar in ca.
+4-5 Minuten durch und liefert die geforderten 10 Fragen.
 
-Wenn `gemma4:31b` mit `prompted` mal eine ungueltige JSON-Antwort liefert,
-ist das ein Modell- bzw. Kontextlimit-Problem; entweder
-`EXAMINATOR_MAX_CHUNKS` reduzieren oder auf ein groesseres Quant
-ausweichen.
+Wenn du ein Modell ohne Tool-Call-Template einsetzt (alte Gemmas,
+Mistral 7B, kleine Llamas), brauchst du `prompted` weiterhin als
+Fallback. Fuer alles, was Tool-Calls ueber Ollama liefern kann, ist
+`tool` die richtige Wahl.
 
 ### Alternative lokale Modelle
 

@@ -41,6 +41,14 @@ COPY . .
 ARG NEXT_PUBLIC_API_URL=http://localhost:8000
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 
+# Optional UX hint baked into the bundle so the header can show *which* LLM
+# this build is wired to. Empty defaults disable the badge entirely; the
+# docker-compose layer fills them in from the backend's actual configuration.
+ARG NEXT_PUBLIC_LLM_PROVIDER=""
+ENV NEXT_PUBLIC_LLM_PROVIDER=${NEXT_PUBLIC_LLM_PROVIDER}
+ARG NEXT_PUBLIC_LLM_MODEL=""
+ENV NEXT_PUBLIC_LLM_MODEL=${NEXT_PUBLIC_LLM_MODEL}
+
 RUN npm run build
 
 # ---------- runner -----------------------------------------------------------

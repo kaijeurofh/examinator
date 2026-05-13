@@ -66,6 +66,49 @@ def _cors_origins() -> list[str]:
     return [o.strip() for o in raw.split(",") if o.strip()]
 
 
+_DEFAULT_LAN_ORIGIN_REGEX = (
+    r"^http://("
+    r"localhost|127\.0\.0\.1|"
+    r"10\.\d{1,3}\.\d{1,3}\.\d{1,3}|"
+    r"192\.168\.\d{1,3}\.\d{1,3}|"
+    r"172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}"
+    r")(:\d+)?$"
+)
+
+_REGEX_DISABLE_SENTINELS = frozenset({"off", "none", "disabled", "-", "false"})
+
+
+def _cors_origin_regex() -> str | None:
+    """Optional regex passed to ``allow_origin_regex``.
+
+    Useful for LAN / VPN access where the user opens the frontend via a
+    private IPv4 address (e.g. ``http://192.168.134.40:3040``) that we can't
+    enumerate statically. The default pattern matches RFC1918 + loopback on
+    any port, so a VPN client hitting any internal IP gets through without
+    further configuration.
+
+    ``EXAMINATOR_CORS_ORIGIN_REGEX`` overrides the default:
+        * unset or empty -> default LAN regex (covers VPN clients).
+        * ``off``/``none``/``disabled``/``-``/``false`` -> regex disabled,
+          only the literal ``EXAMINATOR_CORS_ORIGINS`` list is honoured.
+        * any other value -> used verbatim as the regex.
+
+    The empty-string case is treated as "use default" rather than "disable"
+    because docker-compose's ``${VAR:-}`` substitution injects empty strings
+    when the host has no override, and we don't want the LAN fallback to
+    silently disappear in that very common case.
+    """
+    explicit = os.getenv("EXAMINATOR_CORS_ORIGIN_REGEX")
+    if explicit is None:
+        return _DEFAULT_LAN_ORIGIN_REGEX
+    explicit = explicit.strip()
+    if not explicit:
+        return _DEFAULT_LAN_ORIGIN_REGEX
+    if explicit.lower() in _REGEX_DISABLE_SENTINELS:
+        return None
+    return explicit
+
+
 _job_config_adapter: TypeAdapter[JobConfig] = TypeAdapter(JobConfig)
 
 
@@ -95,6 +138,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins(),
+    allow_origin_regex=_cors_origin_regex(),
     allow_credentials=False,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],

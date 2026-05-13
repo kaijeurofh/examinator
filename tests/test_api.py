@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import io
 import json
+import re
 from collections.abc import AsyncIterator, Awaitable, Callable, Iterator
 from typing import Any
 
@@ -163,3 +164,69 @@ def test_excel_endpoint_404_for_unknown_job(
 ) -> None:
     res = client.get("/api/jobs/non-existent/excel")
     assert res.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# CORS origin regex (LAN / VPN access)
+# ---------------------------------------------------------------------------
+
+
+def test_cors_origin_regex_defaults_to_lan_match(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("EXAMINATOR_CORS_ORIGIN_REGEX", raising=False)
+    pattern = app_module._cors_origin_regex()
+    assert pattern is not None
+    compiled = re.compile(pattern)
+    # RFC1918 + loopback are accepted on any port.
+    assert compiled.match("http://192.168.134.40:3040")
+    assert compiled.match("http://10.0.0.5:3000")
+    assert compiled.match("http://172.16.0.1:8080")
+    assert compiled.match("http://127.0.0.1:3040")
+    assert compiled.match("http://localhost:3040")
+    # Public IPs and HTTPS are *not* covered by the LAN default.
+    assert not compiled.match("http://8.8.8.8:3040")
+    assert not compiled.match("https://192.168.1.1:3040")
+
+
+def test_cors_origin_regex_empty_uses_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("EXAMINATOR_CORS_ORIGIN_REGEX", "")
+    # Empty (the docker-compose ${VAR:-} default) must still produce the LAN
+    # regex; otherwise the very common "no override in .env" case silently
+    # locks VPN clients out.
+    assert app_module._cors_origin_regex() == app_module._DEFAULT_LAN_ORIGIN_REGEX
+
+
+@pytest.mark.parametrize("sentinel", ["off", "none", "DISABLED", "-", "false"])
+def test_cors_origin_regex_disable_sentinels(
+    monkeypatch: pytest.MonkeyPatch, sentinel: str
+) -> None:
+    monkeypatch.setenv("EXAMINATOR_CORS_ORIGIN_REGEX", sentinel)
+    assert app_module._cors_origin_regex() is None
+
+
+def test_cors_origin_regex_custom_pattern_passes_through(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    custom = r"^http://192\.168\.42\.\d{1,3}:3040$"
+    monkeypatch.setenv("EXAMINATOR_CORS_ORIGIN_REGEX", custom)
+    assert app_module._cors_origin_regex() == custom
+
+
+def test_lan_origin_passes_cors_preflight(client: TestClient) -> None:
+    """End-to-end: a VPN client's CORS preflight from a private IP succeeds."""
+    res = client.options(
+        "/api/jobs",
+        headers={
+            "Origin": "http://192.168.134.40:3040",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "content-type",
+        },
+    )
+    assert res.status_code == 200, res.text
+    assert (
+        res.headers.get("access-control-allow-origin")
+        == "http://192.168.134.40:3040"
+    )

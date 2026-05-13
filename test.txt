@@ -1,0 +1,20 @@
+2.3 Embedded Machine Learning (TinyML)
+Embedded Machine Learning bezeichnet die Ausführung von Modellen des maschinellen Lernens direkt auf eingebetteten Systemen, wie Mikrocontrollern oder spezialisierten DSPs (Digital Signal Processors). Im Gegensatz zum klassischen Cloud-Computing findet die Inferenz lokal am „Edge" statt.
+
+Kernmerkmale und Herausforderungen
+Ressourcenknappheit: Die Modelle müssen auf Systemen mit sehr geringem Speicher (oft < 1 MB RAM) und minimaler Rechenleistung funktionieren.
+
+Energieeffizienz: Optimierung für den Batteriebetrieb über Monate oder Jahre hinweg.
+
+Echtzeitfähigkeit: Direkte Verarbeitung von Sensordaten ohne Latenz durch Netzwerkübertragungen.
+
+Optimierungstechniken
+Um komplexe neuronale Netze auf Hardware im Milliwatt-Bereich zu betreiben, kommen spezielle Verfahren zum Einsatz:
+
+Quantisierung: Reduzierung der Präzision von Gewichten (z. B. von 32-Bit Float auf 8-Bit Integer).
+
+Pruning: Entfernen von redundanten Verbindungen innerhalb des Netzwerks.
+
+Wissensdestillation: Ein großes „Lehrer-Modell" trainiert ein kompaktes „Schüler-Modell".
+
+Merksatz: Embedded ML ermöglicht intelligente Entscheidungen dort, wo die Daten entstehen, unter strikter Einhaltung von Privacy- und Energie-Constraints.

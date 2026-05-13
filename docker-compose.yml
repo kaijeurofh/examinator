@@ -45,27 +45,37 @@ services:
     env_file:
       - .env
     environment:
-      # The browser talks to the backend via http://127.0.0.1:${BACKEND_PORT}
-      # (the host port mapping below). The frontend container does NOT call
-      # the backend over the docker network, so this is the only origin CORS
-      # must allow. Both `localhost` and `127.0.0.1` are listed because the
-      # user may type either into the address bar; the Origin header is then
-      # whichever they used.
+      # The browser talks to the backend via http://<host>:${BACKEND_PORT}.
+      # `EXAMINATOR_CORS_ORIGINS` is the literal allow-list; loopback names
+      # are spelt out because the Origin header reflects whichever the user
+      # typed into the address bar.
       EXAMINATOR_CORS_ORIGINS: "http://localhost:${FRONTEND_PORT:-3040},http://127.0.0.1:${FRONTEND_PORT:-3040}"
+      # Regex fallback so VPN / LAN clients hitting the frontend via a private
+      # IPv4 (e.g. http://192.168.134.40:${FRONTEND_PORT}) are not rejected by
+      # CORS. Empty -> backend uses its built-in RFC1918 + loopback regex
+      # (covers most VPN / LAN setups). Set to `off` to disable regex matching
+      # entirely, or to a custom regex to lock the API to specific subnets.
+      EXAMINATOR_CORS_ORIGIN_REGEX: ${EXAMINATOR_CORS_ORIGIN_REGEX:-}
       # --- Local LLM via Ollama (default on the examinator-lokal branch) ---
       # Switch back to OpenAI with EXAMINATOR_LLM_PROVIDER=openai in .env.
       EXAMINATOR_LLM_PROVIDER: ollama
       # host.docker.internal resolves to the Docker host. Docker Desktop on
       # Windows/Mac provides it automatically; on Linux see extra_hosts below.
-      OLLAMA_BASE_URL: http://host.docker.internal:11434/v1
-      OLLAMA_MODEL: gemma4:31b
-      # Gemma 2/3 had no first-class tool-calling template in Ollama; Gemma 4
-      # supports native tool-calls, but the chat-template integration varies
-      # between Ollama builds. `prompted` remains the conservative default for
-      # our nested schemas. Switch to `tool` (when Ollama's template ships
-      # cleanly) or the experimental `native` mode -- see
-      # scripts/benchmark_local.py for an A/B harness.
-      EXAMINATOR_OUTPUT_MODE: prompted
+      # Both vars are env-overridable so a developer who already has another
+      # Ollama bound to the canonical 11434 (e.g. a different project's
+      # docker-compose) can move their own Ollama to a private port via
+      # OLLAMA_HOST=0.0.0.0:11435 and point us at it from `.env`.
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434/v1}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-gemma4:31b}
+      # `tool` is the empirically-correct default for Gemma 4 + Ollama on
+      # this stack: benchmark_local.py against a real Studienheft PDF showed
+      # `prompted` mode producing no schema-valid candidate questions
+      # (Gemma 4's chat template emits reasoning tokens before the inline
+      # JSON, which our nested PageQuestions[T] schema rejects). The native
+      # tool-call path stays clean. Override to `prompted` only if you swap
+      # in a model whose template can't emit tool calls; `native` remains
+      # experimental against Ollama's OpenAI-compat endpoint.
+      EXAMINATOR_OUTPUT_MODE: ${EXAMINATOR_OUTPUT_MODE:-tool}
     extra_hosts:
       # No-op on Docker Desktop (Win/Mac); required on Linux so the backend
       # container can reach the host's Ollama via host.docker.internal.
@@ -97,6 +107,13 @@ services:
         # spurious ERR_CONNECTION_REFUSED for the browser while curl over IPv4
         # works fine. Forcing 127.0.0.1 sidesteps that without disabling IPv6.
         NEXT_PUBLIC_API_URL: "http://127.0.0.1:${BACKEND_PORT:-8210}"
+        # UX hint baked into the header badge so it's obvious at a glance
+        # which provider/model this deployment talks to. Pulled from the same
+        # env knobs the backend reads, so a `.env` override of OLLAMA_MODEL
+        # automatically updates the visible badge after `docker compose build
+        # frontend`. Empty values hide the badge entirely.
+        NEXT_PUBLIC_LLM_PROVIDER: ${EXAMINATOR_LLM_PROVIDER:-ollama}
+        NEXT_PUBLIC_LLM_MODEL: ${OLLAMA_MODEL:-gemma4:31b}
     image: examinator-lokal-frontend
     container_name: examinator-lokal-frontend
     restart: unless-stopped

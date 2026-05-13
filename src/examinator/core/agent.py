@@ -18,16 +18,18 @@ Model selection (via env vars, so the same code services every provider):
 
 Structured-output strategy is controlled by ``EXAMINATOR_OUTPUT_MODE``:
 
-* ``tool`` (default) — pydantic-ai's native tool-calling. Reliable on
-  OpenAI / Anthropic / Gemini. Gemma 4 (released April 2026) also supports
-  native tool-calls, but Ollama's chat-template integration varies by
-  build, so ``prompted`` remains the conservative default for the lokal
-  branch.
+* ``tool`` (default, including the lokal branch) — pydantic-ai's native
+  tool-calling. Reliable on OpenAI / Anthropic / Gemini, and the *only*
+  mode that produced schema-valid candidate questions on Studienheft-grade
+  PDFs in our A/B benchmark with ``gemma4:31b`` via Ollama. Gemma 4's
+  Ollama chat template emits reasoning tokens before any inline JSON, so
+  ``prompted`` parses to an empty candidate set; the tool-call path
+  sidesteps that entirely.
 * ``prompted`` — the JSON schema is inlined into the system prompt and the
-  model is asked to return raw JSON. Robust fallback for older local
-  models (Gemma 2/3, smaller Llamas, Mistral 7B) and the safe default for
-  the lokal branch while Gemma 4's tool-template support stabilises across
-  Ollama builds.
+  model is asked to return raw JSON. Necessary fallback for older local
+  models without a usable tool-call template (Gemma 2/3, smaller Llamas,
+  Mistral 7B). Do *not* use with Gemma 4 unless you have benchmarked your
+  specific build and confirmed it works.
 * ``native`` (experimental) — pydantic-ai passes the schema via
   ``response_format`` (OpenAI-style structured output). Self-hosted Ollama
   >= 0.5.0 *should* honour this via llama.cpp's grammar-constrained
@@ -134,14 +136,13 @@ def _output_type_for(task: TaskType) -> object:
 
     Honours ``EXAMINATOR_OUTPUT_MODE``:
 
-    * ``tool`` (default) returns the bare ``PageQuestions[T]`` class so
-      pydantic-ai issues a native tool call. Reliable on OpenAI / Anthropic
-      / Gemini; Gemma 4 supports tool-calls natively as well but Ollama
-      chat-template integration varies between builds.
+    * ``tool`` (default, including the lokal branch) returns the bare
+      ``PageQuestions[T]`` class so pydantic-ai issues a native tool call.
+      Verified against ``gemma4:31b`` via Ollama on Studienheft-grade PDFs;
+      the only mode that produced schema-valid candidates in our A/B run.
     * ``prompted`` wraps it in :class:`pydantic_ai.output.PromptedOutput`,
-      which inlines the JSON schema into the system prompt. Default on the
-      lokal branch and the robust fallback for any local model where native
-      tool-calls are flaky.
+      which inlines the JSON schema into the system prompt. Necessary
+      fallback only for models without a usable tool-call template.
     * ``native`` wraps it in :class:`pydantic_ai.output.NativeOutput`, which
       passes the schema via ``response_format``. Experimental against
       Ollama's OpenAI-compat endpoint (see pydantic-ai issue #4917); use

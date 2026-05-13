@@ -223,8 +223,15 @@ def _parse_args() -> argparse.Namespace:
     )
     p.add_argument(
         "--base-url",
-        default="http://localhost:11434/v1",
-        help="OpenAI-compatible base URL of your Ollama daemon.",
+        # Pick up OLLAMA_BASE_URL from the environment so developers who
+        # moved their Ollama off the canonical 11434 (e.g. to avoid a port
+        # clash with another docker-compose project) don't have to repeat
+        # `--base-url` on every invocation.
+        default=os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434/v1"),
+        help=(
+            "OpenAI-compatible base URL of your Ollama daemon. "
+            "Defaults to $OLLAMA_BASE_URL if set, else http://localhost:11434/v1."
+        ),
     )
     p.add_argument(
         "--out",
@@ -242,8 +249,19 @@ def main() -> int:
     plaintext: str | None = None
     if args.pdf is not None:
         pdf_bytes = args.pdf.read_bytes()
+        if not pdf_bytes:
+            raise SystemExit(f"--pdf {args.pdf} is empty (0 bytes on disk).")
     else:
         plaintext = args.text_file.read_text(encoding="utf-8")
+        # Fail loud on an empty text file. Without this the pipeline would
+        # raise ValueError on every (model, mode) combination and the
+        # resulting matrix would look like a model regression instead of a
+        # trivial input problem.
+        if not plaintext.strip():
+            raise SystemExit(
+                f"--text-file {args.text_file} is empty or whitespace-only "
+                f"(check that you saved the file before running the benchmark)."
+            )
 
     task = TaskType(args.task)
     config = _build_job_config(task)
