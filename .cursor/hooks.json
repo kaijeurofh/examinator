@@ -1,4 +1,4 @@
-{
+/*{
   "version": 1,
   "hooks": {
     "beforeShellExecution": [
@@ -16,4 +16,4 @@
       }
     ]
   }
-}
+}*/
