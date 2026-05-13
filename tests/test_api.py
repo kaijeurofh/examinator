@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import io
 import json
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable, Iterator
 from typing import Any
 
 import pytest
@@ -66,8 +66,12 @@ def patched_generator(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture
-def client() -> TestClient:
-    return TestClient(app_module.app)
+def client() -> Iterator[TestClient]:
+    # Use TestClient as a context manager so FastAPI's lifespan runs and
+    # ``app.state.job_store`` is populated. Without this, every route that
+    # depends on ``get_store`` raises ``AttributeError``.
+    with TestClient(app_module.app) as test_client:
+        yield test_client
 
 
 def test_health(client: TestClient) -> None:

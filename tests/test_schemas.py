@@ -7,6 +7,7 @@ from pydantic import TypeAdapter, ValidationError
 
 from examinator.core.schemas import (
     AcademicLevel,
+    DifficultyLevel,
     EinsendeaufgabeJobConfig,
     EinsendeaufgabeQAPair,
     HausarbeitJobConfig,
@@ -83,7 +84,7 @@ def test_page_questions_is_generic() -> None:
             KlausurQAPair(
                 question="X",
                 klausur_subtype="Knowledge",
-                difficulty_level="leicht",
+                difficulty_level=DifficultyLevel.LEICHT,
                 academic_level=AcademicLevel.BACHELOR,
                 scope="20 pts",
                 core_topic="T",

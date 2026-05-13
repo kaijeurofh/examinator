@@ -71,8 +71,9 @@ def test_build_model_returns_openai_chat_model_for_ollama_provider(
     monkeypatch.setenv("EXAMINATOR_LLM_PROVIDER", "ollama")
     model = _build_model()
     assert isinstance(model, OpenAIChatModel)
-    # The default model name should be the documented Gemma tag.
-    assert DEFAULT_OLLAMA_MODEL in repr(model) or DEFAULT_OLLAMA_MODEL in str(model)
+    # pydantic-ai's OpenAIChatModel.__repr__ drops the model name, so probe
+    # the attribute directly to avoid coupling to an undocumented format.
+    assert model.model_name == DEFAULT_OLLAMA_MODEL
 
 
 def test_build_model_uses_ollama_overrides(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -82,8 +83,8 @@ def test_build_model_uses_ollama_overrides(monkeypatch: pytest.MonkeyPatch) -> N
     monkeypatch.setenv("OLLAMA_MODEL", "qwen2.5:14b")
     model = _build_model()
     assert isinstance(model, OpenAIChatModel)
-    # Custom model name surfaces somewhere in the object's textual identity.
-    assert "qwen2.5:14b" in repr(model) or "qwen2.5:14b" in str(model)
+    # See note in the previous test about the repr being unhelpful here.
+    assert model.model_name == "qwen2.5:14b"
 
 
 # ---------------------------------------------------------------------------

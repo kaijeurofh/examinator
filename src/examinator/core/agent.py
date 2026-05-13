@@ -40,7 +40,7 @@ Structured-output strategy is controlled by ``EXAMINATOR_OUTPUT_MODE``:
 from __future__ import annotations
 
 import os
-from typing import TYPE_CHECKING, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 from pydantic_ai import Agent
 
@@ -117,16 +117,16 @@ def _selected_model(model: str | Model | None) -> str | Model:
     return _build_model()
 
 
-def _qa_pair_schema(task: TaskType) -> type[PageQuestions]:  # type: ignore[type-arg]
+def _qa_pair_schema(task: TaskType) -> type[PageQuestions[Any]]:
     match task:
         case TaskType.HAUSARBEIT:
-            return cast("type[PageQuestions]", PageQuestions[HausarbeitQAPair])
+            return cast("type[PageQuestions[Any]]", PageQuestions[HausarbeitQAPair])
         case TaskType.PROJEKTARBEIT:
-            return cast("type[PageQuestions]", PageQuestions[ProjektarbeitQAPair])
+            return cast("type[PageQuestions[Any]]", PageQuestions[ProjektarbeitQAPair])
         case TaskType.KLAUSUR:
-            return cast("type[PageQuestions]", PageQuestions[KlausurQAPair])
+            return cast("type[PageQuestions[Any]]", PageQuestions[KlausurQAPair])
         case TaskType.EINSENDEAUFGABE:
-            return cast("type[PageQuestions]", PageQuestions[EinsendeaufgabeQAPair])
+            return cast("type[PageQuestions[Any]]", PageQuestions[EinsendeaufgabeQAPair])
 
 
 def _output_type_for(task: TaskType) -> object:
@@ -165,11 +165,15 @@ def build_candidate_agent(
     config: JobConfig,
     *,
     model: str | Model | None = None,
-) -> Agent[None, PageQuestions]:  # type: ignore[type-arg]
+) -> Agent[None, PageQuestions[Any]]:
     """Build the per-chunk candidate-generation agent for the given job."""
+    output_type = cast(
+        "type[PageQuestions[Any]]",
+        _output_type_for(TaskType(config.task_type)),
+    )
     return Agent(
         _selected_model(model),
-        output_type=_output_type_for(TaskType(config.task_type)),
+        output_type=output_type,
         system_prompt=candidate_prompt_for(config),
     )
 
@@ -178,11 +182,15 @@ def build_reducer_agent(
     config: JobConfig,
     *,
     model: str | Model | None = None,
-) -> Agent[None, PageQuestions]:  # type: ignore[type-arg]
+) -> Agent[None, PageQuestions[Any]]:
     """Build the final reducer agent that selects exactly 10 questions."""
+    output_type = cast(
+        "type[PageQuestions[Any]]",
+        _output_type_for(TaskType(config.task_type)),
+    )
     return Agent(
         _selected_model(model),
-        output_type=_output_type_for(TaskType(config.task_type)),
+        output_type=output_type,
         system_prompt=reducer_prompt_for(config),
     )
 

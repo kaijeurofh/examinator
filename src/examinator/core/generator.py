@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import AsyncIterator, Awaitable, Callable
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from examinator.core.agent import build_candidate_agent, build_reducer_agent
 from examinator.core.chunking import Chunk, chunk_pages
@@ -48,7 +48,7 @@ _MAX_CANDIDATES_FORWARDED = 40
 # without updating those would break the public surface.
 _FINAL_QUESTION_COUNT = 10
 
-ResultCallback = Callable[[PageQuestions], Awaitable[None]]  # type: ignore[type-arg]
+ResultCallback = Callable[[PageQuestions[Any]], Awaitable[None]]
 
 
 def parse_input(
@@ -151,7 +151,7 @@ async def run_generation(
                 message=f"Chunk {i} fehlgeschlagen: {exc}",
             )
             return
-        output: PageQuestions = run.output  # type: ignore[assignment]
+        output: PageQuestions[Any] = run.output
         for q in output.questions:
             if isinstance(q, qa_type):
                 all_candidates.append(q)
@@ -169,7 +169,7 @@ async def run_generation(
     # Cap the candidate pool we forward to the reducer — very large pools waste
     # tokens and rarely improve quality.
     pool = all_candidates[:_MAX_CANDIDATES_FORWARDED]
-    pool_container: PageQuestions = PageQuestions(questions=pool)  # type: ignore[arg-type]
+    pool_container: PageQuestions[Any] = PageQuestions(questions=pool)
 
     yield ProgressEvent(
         stage="reducing",
@@ -185,13 +185,11 @@ async def run_generation(
         yield ProgressEvent(stage="error", message=f"Reduce-Schritt fehlgeschlagen: {exc}")
         return
 
-    final: PageQuestions = reduce_run.output  # type: ignore[assignment]
+    final: PageQuestions[Any] = reduce_run.output
 
     # Enforce the contract: trim if the LLM ignored the "exactly N" instruction.
     if len(final.questions) > _FINAL_QUESTION_COUNT:
-        final = PageQuestions(  # type: ignore[arg-type]
-            questions=final.questions[:_FINAL_QUESTION_COUNT],
-        )
+        final = PageQuestions(questions=final.questions[:_FINAL_QUESTION_COUNT])
 
     if on_result is not None:
         await on_result(final)

@@ -129,7 +129,7 @@ async def create_job(
         config = _job_config_adapter.validate_python(parsed)
     except ValidationError as exc:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=exc.errors(),
         ) from exc
 
@@ -138,7 +138,7 @@ async def create_job(
         pdf_bytes = await pdf.read()
         if len(pdf_bytes) > _max_pdf_bytes():
             raise HTTPException(
-                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                status_code=status.HTTP_413_CONTENT_TOO_LARGE,
                 detail=f"PDF exceeds {_max_pdf_bytes() // (1024 * 1024)} MB limit.",
             )
         if not pdf_bytes:
