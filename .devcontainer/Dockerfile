@@ -18,7 +18,7 @@
 # bump both the tag comment and the digest in lockstep.
 #
 # Resolved 2026-05-11 against ghcr.io/astral-sh/uv:0.11.13.
-FROM ghcr.io/astral-sh/uv:0.11.13@sha256:841c8e6fe30a8b07b4478d12d0c608cba6de66102d29d65d1cc423af86051563 AS uv
+FROM ghcr.io/astral-sh/uv:0.11.14@sha256:1025398289b62de8269e70c45b91ffa37c373f38118d7da036fb8bb8efc85d97 AS uv
 
 # Microsoft-maintained devcontainer base; tag pins the Python minor version
 # and Debian release, digest pins the exact build.
