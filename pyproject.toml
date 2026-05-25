@@ -15,14 +15,14 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
-    "pydantic-ai>=1.0,<2",
+    "pydantic-ai>=1.102.0,<2",
     "python-dotenv>=1.0",
-    "fastapi>=0.115",
+    "fastapi>=0.136.3",
     "uvicorn[standard]>=0.32",
-    "python-multipart>=0.0.20",
-    "pypdf>=5.1",
+    "python-multipart>=0.0.29",
+    "pypdf>=6.12.1",
     "openpyxl>=3.1",
-    "sse-starlette>=2.1",
+    "sse-starlette>=3.4.4",
 ]
 
 [project.scripts]
@@ -54,8 +54,8 @@ required-version = ">=0.11,<0.12"
 dev = [
     "pytest>=8.3",
     "pytest-asyncio>=0.24",
-    "ruff>=0.8",
-    "mypy>=1.13",
+    "ruff>=0.15.14",
+    "mypy>=2.1.0",
     "pre-commit>=4.0",
     # FastAPI's TestClient is implemented on top of httpx; pin it explicitly so
     # the API tests do not depend on a transitive dependency staying available.
