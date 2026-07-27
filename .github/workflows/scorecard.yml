@@ -57,13 +57,13 @@ jobs:
     steps:
       # step-security/harden-runner@v2.19.1
       - name: Harden runner
-        uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920
         with:
           egress-policy: audit
 
       # actions/checkout@v6.0.2
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           # Scorecard's Token-Permissions and Branch-Protection checks must not
           # be allowed to read the workflow's GITHUB_TOKEN; persist=false
@@ -72,7 +72,7 @@ jobs:
 
       # ossf/scorecard-action@v2.4.3
       - name: Run Scorecard analysis
-        uses: ossf/scorecard-action@4eaacf0543bb3f2c246792bd56e8cdeffafb205a
+        uses: ossf/scorecard-action@2d1146689b8cda280b9bc96326124645441f03bc
         with:
           results_file: results.sarif
           results_format: sarif
@@ -91,6 +91,6 @@ jobs:
 
       # github/codeql-action/upload-sarif@v4.35.4
       - name: Upload SARIF to Code Scanning
-        uses: github/codeql-action/upload-sarif@68bde559dea0fdcac2102bfdf6230c5f70eb485e
+        uses: github/codeql-action/upload-sarif@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81
         with:
           sarif_file: results.sarif
